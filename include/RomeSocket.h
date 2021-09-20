@@ -1,7 +1,7 @@
 /*
     跨平台Socket接口
     by apl74
-    2021.09.17
+    2021.09.20
 */
 
 #ifndef ROMESOCKET_H_
