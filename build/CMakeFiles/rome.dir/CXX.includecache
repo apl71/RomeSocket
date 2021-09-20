@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../include/RomeSocket.h
+string
+-
+
+/home/luyingjie/Code/RomeSocket/source/RomeSocket.cpp
+RomeSocket.h
+/home/luyingjie/Code/RomeSocket/source/RomeSocket.h
+sys/socket.h
+-
+netinet/in.h
+-
+arpa/inet.h
+-
+unistd.h
+-
+cstring
+-
+
