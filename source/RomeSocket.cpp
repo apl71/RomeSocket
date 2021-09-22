@@ -5,6 +5,10 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
+#elif defined (_WIN32)
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
 #endif
 
 Socket::Socket()
@@ -52,9 +56,19 @@ int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, un
         return -2;
     }
 
+    #if defined(_WIN32)
+    WSADATA wsa_data;
+    WSAStartup(MAKEWORD(1, 1), &wsa_data);
+    #endif
+
     sock = socket(version, pro, 0);
     #if defined(__linux__)
     if (sock < 0)
+    {
+        return -7;
+    }
+    #elif defined(_WIN32)
+    if (sock == INVALID_SOCKET)
     {
         return -7;
     }
@@ -147,7 +161,7 @@ int Socket::ConnectServer()
     }
 }
 
-int Socket::SendMessage(unsigned char *send_buff, unsigned length)
+int Socket::SendData(unsigned char *send_buff, unsigned length)
 {
     if (!valid)
     {
@@ -156,7 +170,7 @@ int Socket::SendMessage(unsigned char *send_buff, unsigned length)
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = send(sock, send_buff, length, 0)) < 0)
+        if ((len = send(sock, (char *)send_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -167,7 +181,7 @@ int Socket::SendMessage(unsigned char *send_buff, unsigned length)
     }
     else if (role == SERVER)
     {
-        if ((len = send(conn, send_buff, length, 0)) < 0)
+        if ((len = send(conn, (char *)send_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -182,7 +196,7 @@ int Socket::SendMessage(unsigned char *send_buff, unsigned length)
     }
 }
 
-int Socket::RecieveMessage(unsigned char *recv_buff, unsigned length)
+int Socket::RecieveData(unsigned char *recv_buff, unsigned length)
 {
     if (!valid)
     {
@@ -191,7 +205,7 @@ int Socket::RecieveMessage(unsigned char *recv_buff, unsigned length)
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = recv(sock, recv_buff, length, 0)) < 0)
+        if ((len = recv(sock, (char *)recv_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -202,7 +216,7 @@ int Socket::RecieveMessage(unsigned char *recv_buff, unsigned length)
     }
     else if (role == SERVER)
     {
-        if ((len = recv(conn, recv_buff, length, 0)) < 0)
+        if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -230,6 +244,12 @@ void Socket::CloseSocket()
     delete[](sockaddr *)addr;
     addr = nullptr;
     addr_size = 0;
+
+    #if defined(__linux__)
+    close(sock);
+    #elif defined(_WIN32)
+    closesocket(sock);
+    #endif
 }
 
 int Socket::CloseConnection()
@@ -238,6 +258,10 @@ int Socket::CloseConnection()
     {
         return 0;
     }
+    #if defined(__linux__)
     close(conn);
+    #elif defined(_WIN32)
+    closesocket(conn);
+    #endif
     return 1;
 }

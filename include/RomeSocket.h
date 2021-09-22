@@ -15,7 +15,7 @@ enum ROLE { SERVER, CLIENT, UNKNOWN };
 
 #if defined(__linux__)
 typedef int SocketHandle;
-#elif defined(__WIN32__)
+#elif defined(_WIN32)
 typedef unsigned SocketHandle;
 #endif
 
@@ -99,7 +99,7 @@ public:
             -2 = 发送数据失败
             -3 = 未知错误
     */
-    int SendMessage(unsigned char *send_buff, unsigned length);
+    int SendData(unsigned char *send_buff, unsigned length);
 
     /*
         接收消息，此函数是阻塞的
@@ -112,7 +112,7 @@ public:
             -2 = 接收数据失败
             -3 = 未知错误
     */
-    int RecieveMessage(unsigned char *recv_buff, unsigned length);
+    int RecieveData(unsigned char *recv_buff, unsigned length);
 
     /*
         关闭连接

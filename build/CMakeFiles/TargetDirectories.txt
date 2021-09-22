@@ -1,7 +1,0 @@
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/install/strip.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/install.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/list_install_components.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/rebuild_cache.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/edit_cache.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/install/local.dir
-/home/luyingjie/Code/RomeSocket/build/CMakeFiles/roket.dir

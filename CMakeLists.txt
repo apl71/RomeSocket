@@ -8,4 +8,8 @@ add_library(roket SHARED source/RomeSocket.cpp)
 
 target_include_directories(roket PUBLIC include)
 
-install(TARGETS roket DESTINATION /usr/lib)
+if (UNIX)
+	install(TARGETS roket DESTINATION /usr/lib)
+elseif (WIN32)
+	install(TARGETS roket DESTINATION C:\\Windows\\System32)
+endif()
