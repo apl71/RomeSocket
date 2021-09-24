@@ -1,15 +1,19 @@
 cmake_minimum_required(VERSION 3.10)
 
+set(CMAKE_C_COMPILER "gcc")
+set(CMAKE_CXX_COMPILER "g++")
+
 project(RomeSocket VERSION 0.1)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_library(roket SHARED source/RomeSocket.cpp)
+add_library(rocket SHARED source/RomeSocket.cpp)
 
-target_include_directories(roket PUBLIC include)
+target_include_directories(rocket PUBLIC include)
 
 if (UNIX)
-	install(TARGETS roket DESTINATION /usr/lib)
+	install(TARGETS rocket DESTINATION /usr/lib)
 elseif (WIN32)
-	install(TARGETS roket DESTINATION C:\\Windows\\System32)
+	target_link_libraries(rocket -lws2_32)
+	install(TARGETS rocket DESTINATION C:\\Windows\\System32)
 endif()
