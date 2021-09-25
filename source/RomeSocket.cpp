@@ -118,6 +118,16 @@ bool Socket::IsValid()
     return valid;
 }
 
+int Socket::SetSocketSendBuff(int bytes)
+{
+    return setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bytes, sizeof(int));
+}
+
+int Socket::SetSocketReceiveBuff(int bytes)
+{
+    return setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bytes, sizeof(int));
+}
+
 int Socket::AcceptClient()
 {
     if (!valid)
@@ -197,7 +207,7 @@ int Socket::SendData(unsigned char *send_buff, unsigned length)
     }
 }
 
-int Socket::RecieveData(unsigned char *recv_buff, unsigned length)
+int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
 {
     if (!valid)
     {

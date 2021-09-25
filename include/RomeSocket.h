@@ -67,6 +67,20 @@ public:
     bool IsValid();
 
     /*
+        设置套接字的发送缓冲区长度
+        输入
+            bytes -- 套接字的缓冲长度
+    */
+    int SetSocketSendBuff(int bytes);
+
+    /*
+        设置套接字的接收缓冲区长度
+        输入
+            bytes -- 套接字的缓冲长度
+    */
+    int SetSocketReceiveBuff(int bytes);
+
+    /*
         开始接收客户端消息
         输出
             整数表示执行结果
@@ -112,7 +126,7 @@ public:
             -2 = 接收数据失败
             -3 = 未知错误
     */
-    int RecieveData(unsigned char *recv_buff, unsigned length);
+    int ReceiveData(unsigned char *recv_buff, unsigned length);
 
     /*
         关闭连接
