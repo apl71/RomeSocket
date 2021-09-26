@@ -242,6 +242,23 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
     }
 }
 
+int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length)
+{
+    unsigned received = 0;
+    unsigned remain = length;
+    while (received < length)
+    {
+        int count = ReceiveData(recv_buff + received, remain);
+        if (count < 0)
+        {
+            return count;
+        }
+        remain -= count;
+        received += count;
+    }
+    return received;
+}
+
 void Socket::CloseSocket()
 {
     if (!valid)

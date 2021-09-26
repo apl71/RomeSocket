@@ -129,6 +129,19 @@ public:
     int ReceiveData(unsigned char *recv_buff, unsigned length);
 
     /*
+        接收消息，与ReceiveData不同的是，该函数直到缓冲区被填满才会返回
+        输入
+            recv_buff 接收数据的缓冲区
+            length 可用的缓冲区大小
+        输出
+            实际接收到的数据大小，若为负数，参阅以下错误代码
+            -1 = 失败，套接字不可用
+            -2 = 接收数据失败
+            -3 = 未知错误
+    */
+    int ReceiveDataFix(unsigned char *recv_buff, unsigned length);
+
+    /*
         关闭连接
         输出
             整数表示执行结果
