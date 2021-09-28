@@ -64,7 +64,7 @@ public:
         输出
             布尔值，表示当前套接字的可用性
     */
-    bool IsValid();
+    bool IsValid() const;
 
     /*
         设置套接字的发送缓冲区长度
@@ -113,7 +113,7 @@ public:
             -2 = 发送数据失败
             -3 = 未知错误
     */
-    int SendData(unsigned char *send_buff, unsigned length);
+    int SendData(unsigned char *send_buff, unsigned length) const;
 
     /*
         接收消息，此函数是阻塞的
@@ -126,7 +126,7 @@ public:
             -2 = 接收数据失败
             -3 = 未知错误
     */
-    int ReceiveData(unsigned char *recv_buff, unsigned length);
+    int ReceiveData(unsigned char *recv_buff, unsigned length) const;
 
     /*
         接收消息，与ReceiveData不同的是，该函数直到缓冲区被填满才会返回
@@ -139,7 +139,7 @@ public:
             -2 = 接收数据失败
             -3 = 未知错误
     */
-    int ReceiveDataFix(unsigned char *recv_buff, unsigned length);
+    int ReceiveDataFix(unsigned char *recv_buff, unsigned length) const;
 
     /*
         关闭连接

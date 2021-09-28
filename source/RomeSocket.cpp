@@ -113,7 +113,7 @@ int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, un
     }
 }
 
-bool Socket::IsValid()
+bool Socket::IsValid() const
 {
     return valid;
 }
@@ -172,7 +172,7 @@ int Socket::ConnectServer()
     }
 }
 
-int Socket::SendData(unsigned char *send_buff, unsigned length)
+int Socket::SendData(unsigned char *send_buff, unsigned length) const
 {
     if (!valid)
     {
@@ -207,7 +207,7 @@ int Socket::SendData(unsigned char *send_buff, unsigned length)
     }
 }
 
-int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
+int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
 {
     if (!valid)
     {
@@ -242,7 +242,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
     }
 }
 
-int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length)
+int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length) const
 {
     unsigned received = 0;
     unsigned remain = length;
@@ -291,5 +291,6 @@ int Socket::CloseConnection()
     #elif defined(_WIN32)
     closesocket(conn);
     #endif
+    conn = -1;
     return 1;
 }
