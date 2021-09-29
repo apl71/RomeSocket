@@ -120,12 +120,12 @@ bool Socket::IsValid() const
 
 int Socket::SetSocketSendBuff(int bytes)
 {
-    return setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &bytes, sizeof(int));
+    return setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (const char *)&bytes, sizeof(int));
 }
 
 int Socket::SetSocketReceiveBuff(int bytes)
 {
-    return setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &bytes, sizeof(int));
+    return setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (const char *)&bytes, sizeof(int));
 }
 
 int Socket::AcceptClient()
