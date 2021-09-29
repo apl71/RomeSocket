@@ -142,6 +142,11 @@ public:
     int ReceiveDataFix(unsigned char *recv_buff, unsigned length) const;
 
     /*
+        重置连接
+    */
+    void ResetConnection();
+
+    /*
         关闭连接
         输出
             整数表示执行结果

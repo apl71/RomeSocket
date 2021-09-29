@@ -294,3 +294,8 @@ int Socket::CloseConnection()
     conn = -1;
     return 1;
 }
+
+void Socket::ResetConnection()
+{
+    conn = -1;
+}
