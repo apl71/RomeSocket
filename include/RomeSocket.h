@@ -8,6 +8,7 @@
 #define ROMESOCKET_H_
 
 #include <string>
+#include <functional>
 
 enum SOCKET_TYPE { TCP, UDP };
 enum IP_VERSION { IPv4, IPv6 };
@@ -159,6 +160,15 @@ public:
         关闭套接字
     */
     void CloseSocket();
+
+    /*
+        创建一个新线程，并将当前连接转移给新线程执行
+        输入
+            func -- 新线程需要执行的函数
+            as   -- 函数的参数列表
+    */
+    template <typename ... Args>
+    void ThreadDetach(std::function<void(Args...)> const &func, Args ... as);
 };
 
 #endif
