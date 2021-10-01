@@ -9,6 +9,9 @@
 
 #include <string>
 #include <functional>
+#include <thread>
+#include <vector>
+#include <mutex>
 
 enum SOCKET_TYPE { TCP, UDP };
 enum IP_VERSION { IPv4, IPv6 };
@@ -20,6 +23,12 @@ typedef int SocketHandle;
 typedef unsigned SocketHandle;
 #endif
 
+struct Thread
+{
+    std::thread::id tid;
+    int conn;
+};
+
 class Socket
 {
 private:
@@ -27,8 +36,10 @@ private:
     SocketHandle sock;
     // 由于各个平台的不可用套接字的值不同，需要该变量来表示套接字的可用性
     bool valid = false;
-    // 服务器端使用的连接
-    int conn = -1;
+    // 保存线程号和连接
+    std::vector<Thread> threads;
+    // 保护threads用的锁
+    std::mutex thread_lock;
     // 指定客户端或服务端
     ROLE role = UNKNOWN;
     // 保存结构体
@@ -37,6 +48,17 @@ private:
     unsigned addr_size = 0;
     // 最大连接数量，不设置默认为200
     unsigned max_conn = 200;
+
+    /*
+        通过当前的线程号获得对应的连接句柄
+        输入
+            tid -- 当前的线程号
+        输出
+            整数，表示连接句柄，如果没有对应连接或连接不可用，返回-1
+    */
+    int GetConnection(std::thread::id tid) const;
+
+    void ClearClosedConnection();
 
 public:
     Socket();
@@ -117,6 +139,19 @@ public:
     int SendData(unsigned char *send_buff, unsigned length) const;
 
     /*
+        发送消息，此函数阻塞，持续发送直至指定长度的消息全部发送完毕
+        输入
+            send_buff 要发送的消息的缓冲区
+            length 要发送的真实字节数
+        输出
+            已发送的字节数，若为负数，参阅以下错误代码
+            -1 = 失败，套接字不可用
+            -2 = 发送数据失败
+            -3 = 未知错误
+    */
+    int SendDataFix(unsigned char *send_buff, unsigned length) const;
+
+    /*
         接收消息，此函数是阻塞的
         输入
             recv_buff 接收数据的缓冲区
@@ -125,7 +160,8 @@ public:
             实际接收到的数据大小，若为负数，参阅以下错误代码
             -1 = 失败，套接字不可用
             -2 = 接收数据失败
-            -3 = 未知错误
+            -3 = 失败，连接不可用
+            -4 = 失败，未知错误
     */
     int ReceiveData(unsigned char *recv_buff, unsigned length) const;
 
@@ -151,8 +187,9 @@ public:
         关闭连接
         输出
             整数表示执行结果
-            1 = 成功
-            0 = 失败，仅有服务器可以断开连接
+            1  = 成功
+            0  = 失败，仅有服务器可以断开连接
+            -1 = 失败，连接已经断开
     */
     int CloseConnection();
 
@@ -162,13 +199,33 @@ public:
     void CloseSocket();
 
     /*
-        创建一个新线程，并将当前连接转移给新线程执行
+        创建一个新线程，并将当前连接转移给新线程执行，当前连接
+        会失效，需要重新执行AcceptClient()函数接受新的连接
         输入
             func -- 新线程需要执行的函数
             as   -- 函数的参数列表
     */
     template <typename ... Args>
-    void ThreadDetach(std::function<void(Args...)> const &func, Args ... as);
+    void ThreadDetach(std::function<void(Args...)> const &func, Args &&... as);
 };
+
+template <typename ... Args>
+void Socket::ThreadDetach(std::function<void(Args...)> const &func, Args &&... as)
+{
+    // 抢占锁
+    while (thread_lock.try_lock());
+    // 创建新线程
+    std::thread new_thread(func, std::ref(as) ...);
+    // 将当前线程重置，并将连接转移至新进程
+    int conn = GetConnection(std::this_thread::get_id());
+    ResetConnection();
+    std::thread::id new_tid = new_thread.get_id();
+    threads.push_back(Thread{new_tid, conn});
+    // 解锁
+    thread_lock.unlock();
+    
+    // 分离进程
+    new_thread.detach();
+}
 
 #endif

@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <cstring>
-#elif defined (_WIN32)
+#elif defined(_WIN32)
 #define _WIN32_WINNT 0x0601
 #include <WinSock2.h>
 #include <ws2tcpip.h>
@@ -15,6 +15,36 @@
 Socket::Socket()
 {
     valid = false;
+}
+
+int Socket::GetConnection(std::thread::id tid) const
+{
+    for (auto iter = threads.begin(); iter != threads.end(); ++iter)
+    {
+        if (tid == iter->tid)
+        {
+            return iter->conn;
+        }
+    }
+    return -1;
+}
+
+void Socket::ClearClosedConnection()
+{
+    // 将已经断开的连接删除
+    while (thread_lock.try_lock());
+    auto iter = threads.begin();
+    while (iter != threads.end())
+    {
+        if (iter->conn == -1)
+        {
+            iter = threads.erase(iter);
+        }
+        else
+        {
+            ++iter;
+        }
+    }
 }
 
 int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip)
@@ -130,6 +160,7 @@ int Socket::SetSocketReceiveBuff(int bytes)
 
 int Socket::AcceptClient()
 {
+    ClearClosedConnection();
     if (!valid)
     {
         return -3;
@@ -139,18 +170,23 @@ int Socket::AcceptClient()
     {
         return 0;
     }
-    if (conn != -1)
+    // 检查当前线程是否有对应的连接
+    std::thread::id current_tid = std::this_thread::get_id();
+    if (GetConnection(current_tid) != -1)
     {
         return -1;
     }
 
-    conn = accept(sock, nullptr, nullptr);
-    if (conn == -1)
+    int new_conn = accept(sock, nullptr, nullptr);
+    if (new_conn == -1)
     {
         return -2;
     }
     else
     {
+        while (thread_lock.try_lock());
+        threads.push_back(Thread{current_tid, new_conn});
+        thread_lock.unlock();
         return 1;
     }
 }
@@ -192,6 +228,12 @@ int Socket::SendData(unsigned char *send_buff, unsigned length) const
     }
     else if (role == SERVER)
     {
+        // 获取当前线程对应的连接
+        int conn = GetConnection(std::this_thread::get_id());
+        if (conn == -1)
+        {
+            return -3;
+        }
         if ((len = send(conn, (char *)send_buff, length, 0)) < 0)
         {
             return -2;
@@ -203,8 +245,25 @@ int Socket::SendData(unsigned char *send_buff, unsigned length) const
     }
     else
     {
-        return -3;
+        return -4;
     }
+}
+
+int Socket::SendDataFix(unsigned char *send_buff, unsigned length) const
+{
+    unsigned sent = 0;
+    unsigned remain = length;
+    while (sent < length)
+    {
+        int count = SendData(send_buff + sent, remain);
+        if (count < 0)
+        {
+            return count;
+        }
+        remain -= count;
+        sent += count;
+    }
+    return sent;
 }
 
 int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
@@ -227,6 +286,12 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
     }
     else if (role == SERVER)
     {
+        // 获取当前线程对应的连接
+        int conn = GetConnection(std::this_thread::get_id());
+        if (conn == -1)
+        {
+            return -3;
+        }
         if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
         {
             return -2;
@@ -238,7 +303,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
     }
     else
     {
-        return -3;
+        return -4;
     }
 }
 
@@ -267,7 +332,7 @@ void Socket::CloseSocket()
     }
 
     valid = false;
-    conn = -1;
+    threads.clear();
     role = UNKNOWN;
     delete[](sockaddr *)addr;
     addr = nullptr;
@@ -286,16 +351,37 @@ int Socket::CloseConnection()
     {
         return 0;
     }
+
+    // 获取当前线程对应的连接
+    int conn = GetConnection(std::this_thread::get_id());
+    if (conn == -1)
+    {
+        return -1;
+    }
+
     #if defined(__linux__)
     close(conn);
     #elif defined(_WIN32)
     closesocket(conn);
     #endif
-    conn = -1;
+    ResetConnection();
     return 1;
 }
 
 void Socket::ResetConnection()
 {
-    conn = -1;
+    // 获取当前线程对应的连接
+    while (thread_lock.try_lock());
+
+    std::thread::id current_tid = std::this_thread::get_id();
+    for (auto iter = threads.begin(); iter != threads.end(); ++iter)
+    {
+        if (iter->tid == current_tid)
+        {
+            iter->conn = -1;
+            return;
+        }
+    }
+    thread_lock.unlock();
 }
+
