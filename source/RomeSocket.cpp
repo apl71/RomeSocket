@@ -45,6 +45,7 @@ void Socket::ClearClosedConnection()
             ++iter;
         }
     }
+    thread_lock.unlock();
 }
 
 int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip)
@@ -383,5 +384,6 @@ void Socket::ResetConnection()
         }
     }
     thread_lock.unlock();
+    ClearClosedConnection();
 }
 
