@@ -276,7 +276,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = recv(sock, (char *)recv_buff, length, 0)) < 0)
+        if ((len = recv(sock, (char *)recv_buff, length, 0)) <= 0)
         {
             return -2;
         }
@@ -293,7 +293,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
         {
             return -3;
         }
-        if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
+        if ((len = recv(conn, (char *)recv_buff, length, 0)) <= 0)
         {
             return -2;
         }
@@ -315,7 +315,7 @@ int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length) const
     while (received < length)
     {
         int count = ReceiveData(recv_buff + received, remain);
-        if (count < 0)
+        if (count <= 0)
         {
             return count;
         }

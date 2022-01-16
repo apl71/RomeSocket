@@ -179,6 +179,15 @@ public:
     int ReceiveDataFix(unsigned char *recv_buff, unsigned length) const;
 
     /*
+        设置接收超时时间，单位为秒
+    */
+    int SetTimeout(int seconds);
+
+    /*
+        设置发送超时时间，单位为秒
+    */
+
+    /*
         重置连接
     */
     void ResetConnection();
