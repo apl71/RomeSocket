@@ -17,8 +17,9 @@ Socket::Socket()
     valid = false;
 }
 
-int Socket::GetConnection(std::thread::id tid) const
+int Socket::GetConnection(std::thread::id tid)
 {
+    thread_lock.lock_shared();
     for (auto iter = threads.begin(); iter != threads.end(); ++iter)
     {
         if (tid == iter->tid)
@@ -26,13 +27,14 @@ int Socket::GetConnection(std::thread::id tid) const
             return iter->conn;
         }
     }
+    thread_lock.unlock_shared();
     return -1;
 }
 
 void Socket::ClearClosedConnection()
 {
     // 将已经断开的连接删除
-    while (thread_lock.try_lock());
+    thread_lock.lock();
     auto iter = threads.begin();
     while (iter != threads.end())
     {
@@ -185,7 +187,7 @@ int Socket::AcceptClient()
     }
     else
     {
-        while (thread_lock.try_lock());
+        thread_lock.lock();
         threads.push_back(Thread{current_tid, new_conn});
         thread_lock.unlock();
         return 1;
@@ -209,7 +211,7 @@ int Socket::ConnectServer()
     }
 }
 
-int Socket::SendData(unsigned char *send_buff, unsigned length) const
+int Socket::SendData(unsigned char *send_buff, unsigned length)
 {
     if (!valid)
     {
@@ -250,7 +252,7 @@ int Socket::SendData(unsigned char *send_buff, unsigned length) const
     }
 }
 
-int Socket::SendDataFix(unsigned char *send_buff, unsigned length) const
+int Socket::SendDataFix(unsigned char *send_buff, unsigned length)
 {
     unsigned sent = 0;
     unsigned remain = length;
@@ -267,7 +269,7 @@ int Socket::SendDataFix(unsigned char *send_buff, unsigned length) const
     return sent;
 }
 
-int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
+int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
 {
     if (!valid)
     {
@@ -276,7 +278,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = recv(sock, (char *)recv_buff, length, 0)) <= 0)
+        if ((len = recv(sock, (char *)recv_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -293,7 +295,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
         {
             return -3;
         }
-        if ((len = recv(conn, (char *)recv_buff, length, 0)) <= 0)
+        if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
         {
             return -2;
         }
@@ -308,7 +310,7 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length) const
     }
 }
 
-int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length) const
+int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length)
 {
     unsigned received = 0;
     unsigned remain = length;
@@ -372,7 +374,7 @@ int Socket::CloseConnection()
 void Socket::ResetConnection()
 {
     // 获取当前线程对应的连接
-    while (thread_lock.try_lock());
+    thread_lock.lock();
 
     std::thread::id current_tid = std::this_thread::get_id();
     for (auto iter = threads.begin(); iter != threads.end(); ++iter)

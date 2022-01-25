@@ -1,6 +1,6 @@
 /*
     跨平台Socket接口
-    by apl74
+    by apl71
     2021.09.20
 */
 
@@ -11,7 +11,9 @@
 #include <functional>
 #include <thread>
 #include <vector>
-#include <mutex>
+#include <shared_mutex>
+
+#include <iostream>
 
 enum SOCKET_TYPE { TCP, UDP };
 enum IP_VERSION { IPv4, IPv6 };
@@ -39,7 +41,7 @@ private:
     // 保存线程号和连接
     std::vector<Thread> threads;
     // 保护threads用的锁
-    std::mutex thread_lock;
+    std::shared_mutex thread_lock;
     // 指定客户端或服务端
     ROLE role = UNKNOWN;
     // 保存结构体
@@ -56,11 +58,28 @@ private:
         输出
             整数，表示连接句柄，如果没有对应连接或连接不可用，返回-1
     */
-    int GetConnection(std::thread::id tid) const;
+    int GetConnection(std::thread::id tid);
 
     void ClearClosedConnection();
 
 public:
+    /*
+        For debug
+    */
+    std::mutex print_mutex;
+    void PrintThreadTable()
+    {
+        print_mutex.lock();
+        std::cout << "my tid = " << std::this_thread::get_id() << std::endl;
+        std::cout << "tid\tconn" << std::endl;
+        for (auto i : threads)
+        {
+            std::cout << i.tid << "\t" << i.conn << std::endl;
+        }
+        print_mutex.unlock();
+    }
+
+
     Socket();
 
     /*
@@ -136,7 +155,7 @@ public:
             -2 = 发送数据失败
             -3 = 未知错误
     */
-    int SendData(unsigned char *send_buff, unsigned length) const;
+    int SendData(unsigned char *send_buff, unsigned length);
 
     /*
         发送消息，此函数阻塞，持续发送直至指定长度的消息全部发送完毕
@@ -149,7 +168,7 @@ public:
             -2 = 发送数据失败
             -3 = 未知错误
     */
-    int SendDataFix(unsigned char *send_buff, unsigned length) const;
+    int SendDataFix(unsigned char *send_buff, unsigned length);
 
     /*
         接收消息，此函数是阻塞的
@@ -163,7 +182,7 @@ public:
             -3 = 失败，连接不可用
             -4 = 失败，未知错误
     */
-    int ReceiveData(unsigned char *recv_buff, unsigned length) const;
+    int ReceiveData(unsigned char *recv_buff, unsigned length);
 
     /*
         接收消息，与ReceiveData不同的是，该函数直到缓冲区被填满才会返回
@@ -176,7 +195,7 @@ public:
             -2 = 接收数据失败
             -3 = 未知错误
     */
-    int ReceiveDataFix(unsigned char *recv_buff, unsigned length) const;
+    int ReceiveDataFix(unsigned char *recv_buff, unsigned length);
 
     /*
         设置接收超时时间，单位为秒
@@ -221,18 +240,18 @@ public:
 template <typename ... Args>
 void Socket::ThreadDetach(std::function<void(Args...)> const &func, Args &&... as)
 {
-    // 抢占锁
-    while (thread_lock.try_lock());
+    // 将当前线程重置
+    ResetConnection();
+    // 将连接保存下来，待会转移至新线程
+    int conn = GetConnection(std::this_thread::get_id());
+    // 在创建新线程前抢占锁，防止新线程访问threads容器
+    thread_lock.lock();
     // 创建新线程
     std::thread new_thread(func, std::ref(as) ...);
-    // 将当前线程重置，并将连接转移至新进程
-    int conn = GetConnection(std::this_thread::get_id());
-    ResetConnection();
     std::thread::id new_tid = new_thread.get_id();
     threads.push_back(Thread{new_tid, conn});
     // 解锁
     thread_lock.unlock();
-    
     // 分离进程
     new_thread.detach();
 }
