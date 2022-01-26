@@ -19,16 +19,18 @@ Socket::Socket()
 
 int Socket::GetConnection(std::thread::id tid)
 {
+    int conn = -1;
     thread_lock.lock_shared();
     for (auto iter = threads.begin(); iter != threads.end(); ++iter)
     {
         if (tid == iter->tid)
         {
-            return iter->conn;
+            conn = iter->conn;
+            break;
         }
     }
     thread_lock.unlock_shared();
-    return -1;
+    return conn;
 }
 
 void Socket::ClearClosedConnection()
@@ -38,7 +40,7 @@ void Socket::ClearClosedConnection()
     auto iter = threads.begin();
     while (iter != threads.end())
     {
-        if (iter->conn == -1)
+        if (iter->conn == -1 && !iter->is_main_thread)
         {
             iter = threads.erase(iter);
         }
@@ -161,6 +163,12 @@ int Socket::SetSocketReceiveBuff(int bytes)
     return setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (const char *)&bytes, sizeof(int));
 }
 
+void Socket::SetReceiveTimeout(int seconds)
+{
+    timeval timeout = {seconds};
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeval));
+}
+
 int Socket::AcceptClient()
 {
     ClearClosedConnection();
@@ -187,8 +195,24 @@ int Socket::AcceptClient()
     }
     else
     {
+        // 当主线程创建一个新线程后，主线程对应的连接会被重置为-1
+        // 在这种情况下，不能直接将新的连接信息插入线程表中
+        // 否则导致线程表冲突（包含两个主线程对应的连接号）
+        // 造成下一次创建新线程时无法正常转移连接
         thread_lock.lock();
-        threads.push_back(Thread{current_tid, new_conn});
+        bool is_exists = false;
+        for (auto iter = threads.begin(); iter != threads.end(); ++iter)
+        {
+            if (iter->tid == current_tid)
+            {
+                iter->conn = new_conn;
+                is_exists = true;
+            }
+        }
+        if (!is_exists)
+        {
+            threads.push_back(Thread{current_tid, new_conn, true});
+        }
         thread_lock.unlock();
         return 1;
     }
@@ -382,7 +406,7 @@ void Socket::ResetConnection()
         if (iter->tid == current_tid)
         {
             iter->conn = -1;
-            return;
+            break;
         }
     }
     thread_lock.unlock();

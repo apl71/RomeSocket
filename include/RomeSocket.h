@@ -28,7 +28,8 @@ typedef unsigned SocketHandle;
 struct Thread
 {
     std::thread::id tid;
-    int conn;
+    int conn = -1;
+    bool is_main_thread = false;
 };
 
 class Socket
@@ -121,6 +122,11 @@ public:
             bytes -- 套接字的缓冲长度
     */
     int SetSocketReceiveBuff(int bytes);
+
+    /*
+        设置套接字接收超时时间，单位为秒
+    */
+    void SetReceiveTimeout(int seconds);
 
     /*
         开始接收客户端消息
@@ -240,10 +246,10 @@ public:
 template <typename ... Args>
 void Socket::ThreadDetach(std::function<void(Args...)> const &func, Args &&... as)
 {
-    // 将当前线程重置
-    ResetConnection();
     // 将连接保存下来，待会转移至新线程
     int conn = GetConnection(std::this_thread::get_id());
+    // 将当前线程重置
+    ResetConnection();
     // 在创建新线程前抢占锁，防止新线程访问threads容器
     thread_lock.lock();
     // 创建新线程
