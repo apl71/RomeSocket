@@ -12,6 +12,7 @@
 #include <thread>
 #include <vector>
 #include <shared_mutex>
+#include <openssl/ssl.h>
 
 #include <iostream>
 
@@ -30,6 +31,7 @@ struct Thread
     std::thread::id tid;
     int conn = -1;
     bool is_main_thread = false;
+    SSL *ssl;
 };
 
 class Socket
@@ -51,6 +53,12 @@ private:
     unsigned addr_size = 0;
     // 最大连接数量，不设置默认为200
     unsigned max_conn = 200;
+    bool use_ssl = false;
+    SSL_CTX *ctx = nullptr;
+    SSL *client_ssl = nullptr; // 仅客户端使用
+    BIO *bio; // 仅客户端使用
+    std::string host;
+    unsigned target_port;
 
     /*
         通过当前的线程号获得对应的连接句柄
@@ -60,6 +68,8 @@ private:
             整数，表示连接句柄，如果没有对应连接或连接不可用，返回-1
     */
     int GetConnection(std::thread::id tid);
+
+    SSL *GetSSLConnection(std::thread::id tid);
 
     void ClearClosedConnection();
 
@@ -83,6 +93,8 @@ public:
 
     Socket();
 
+    ~Socket() { CloseSocket(); }
+
     /*
         创建套接字
         输入
@@ -90,17 +102,20 @@ public:
             protocol 传输层协议，可选的值有TCP和UDP
         输出
             整数表示执行结果
-            1  = 成功
-            0  = 失败，该对象已经创建了一个可用的套接字
-            -1 = 失败，IP类型不正确
-            -2 = 失败，传输层协议不正确
-            -3 = 失败，inet_pton错误
-            -4 = 失败，未能绑定套接字
-            -5 = 失败，未能监听端口
-            -6 = 失败，指定CS类型错误
-            -7 = 失败，未能创建套接字
+            1   = 成功
+            0   = 失败，该对象已经创建了一个可用的套接字
+            -1  = 失败，IP类型不正确
+            -2  = 失败，传输层协议不正确
+            -3  = 失败，inet_pton错误
+            -4  = 失败，未能绑定套接字
+            -5  = 失败，未能监听端口
+            -6  = 失败，指定CS类型错误
+            -7  = 失败，未能创建套接字
+            -8  = 失败，未能创建SSL环境
+            -9  = 失败，未能生成私钥
+            -10 = 失败，未能生成证书
     */
-    int CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip = "");
+    int CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip = "", bool ssl = true);
 
     /*
         检查当前套接字是否可用
@@ -137,6 +152,7 @@ public:
             -1 = 失败，已经开始接收客户端消息
             -2 = 失败，未能成功接收客户端请求
             -3 = 失败，套接字不可用
+            -4 = 失败，SSL接收失败
     */
     int AcceptClient();
 
@@ -147,6 +163,7 @@ public:
             1  = 成功
             0  = 失败，未能连接到服务器
             -1 = 失败，套接字不可用
+            -2 = 失败，加密握手失败
     */
    int ConnectServer();
 
@@ -175,6 +192,10 @@ public:
             -3 = 未知错误
     */
     int SendDataFix(unsigned char *send_buff, unsigned length);
+    int SendDataFix(char *send_buff, unsigned length)
+    {
+        return SendDataFix((unsigned char *)send_buff, length);
+    }
 
     /*
         接收消息，此函数是阻塞的
@@ -202,6 +223,20 @@ public:
             -3 = 未知错误
     */
     int ReceiveDataFix(unsigned char *recv_buff, unsigned length);
+    int ReceiveDataFix(char *recv_buff, unsigned length)
+    {
+        return ReceiveDataFix((unsigned char *)recv_buff, length);
+    }
+
+    /*
+        发送任意长度的字符串
+    */
+    int SendString(const std::string &str);
+
+    /*
+        接收任意长度的字符串
+    */
+    int ReceiveString(std::string &str);
 
     /*
         设置接收超时时间，单位为秒
@@ -248,6 +283,7 @@ void Socket::ThreadDetach(std::function<void(Args...)> const &func, Args &&... a
 {
     // 将连接保存下来，待会转移至新线程
     int conn = GetConnection(std::this_thread::get_id());
+    SSL *ssl = GetSSLConnection(std::this_thread::get_id());
     // 将当前线程重置
     ResetConnection();
     // 在创建新线程前抢占锁，防止新线程访问threads容器
@@ -255,7 +291,7 @@ void Socket::ThreadDetach(std::function<void(Args...)> const &func, Args &&... a
     // 创建新线程
     std::thread new_thread(func, std::ref(as) ...);
     std::thread::id new_tid = new_thread.get_id();
-    threads.push_back(Thread{new_tid, conn});
+    threads.push_back(Thread{new_tid, conn, false, ssl});
     // 解锁
     thread_lock.unlock();
     // 分离进程

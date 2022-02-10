@@ -1,4 +1,6 @@
 #include "RomeSocket.h"
+#include <openssl/ssl.h>
+#include <fstream>
 #if defined(__linux__)
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -33,6 +35,22 @@ int Socket::GetConnection(std::thread::id tid)
     return conn;
 }
 
+SSL *Socket::GetSSLConnection(std::thread::id tid)
+{
+    SSL *ssl = nullptr;
+    thread_lock.lock_shared();
+    for (auto iter = threads.begin(); iter != threads.end(); ++iter)
+    {
+        if (tid == iter->tid)
+        {
+            ssl = iter->ssl;
+            break;
+        }
+    }
+    thread_lock.unlock_shared();
+    return ssl;
+}
+
 void Socket::ClearClosedConnection()
 {
     // 将已经断开的连接删除
@@ -52,7 +70,7 @@ void Socket::ClearClosedConnection()
     thread_lock.unlock();
 }
 
-int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip)
+int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, unsigned port, std::string ip, bool ssl)
 {
     // 已经创建了可用套接字，不能重复创建
     if (valid)
@@ -115,16 +133,36 @@ int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, un
     ((sockaddr_in *)addr)->sin_family = version;
     ((sockaddr_in *)addr)->sin_port = htons(port);
 
+    host = ip;
+    target_port = port;
+
     if (r == CLIENT)
     {
-        if (inet_pton(version, ip.c_str(), &((sockaddr_in *)addr)->sin_addr) <= 0)
+        if (ssl)
         {
-            return -3;
+            const SSL_METHOD *method = TLS_client_method();
+            ctx = SSL_CTX_new(method);
+            if (!ctx)
+            {
+                return -8;
+            }
+            client_ssl = SSL_new(ctx);
+            SSL_set_fd(client_ssl, sock);
+            use_ssl = true;
+            valid = true;
+            return 1;
         }
         else
         {
-            valid = true;
-            return 1;
+            if (inet_pton(version, ip.c_str(), &((sockaddr_in *)addr)->sin_addr) <= 0)
+            {
+                return -3;
+            }
+            else
+            {
+                valid = true;
+                return 1;
+            }
         }
     }
     else if (r == SERVER)
@@ -140,12 +178,43 @@ int Socket::CreateSocket(IP_VERSION ip_version, SOCKET_TYPE protocol, ROLE r, un
             return -5;
         }
         valid = true;
+        // here
+        if (ssl)
+        {
+            const SSL_METHOD *method = TLS_server_method();
+            ctx = SSL_CTX_new(method); // free when socket closed
+            if (!ctx)
+            {
+                return -8;
+            }
+            // 配置证书和私钥，每次自动生成
+            EVP_PKEY *pem_key = EVP_RSA_gen(4096);
+
+            if (SSL_CTX_use_PrivateKey(ctx, pem_key) <= 0 ) {
+                return -9;
+            }
+
+            X509 *x509 = X509_new();
+            ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
+            X509_gmtime_adj(X509_getm_notBefore(x509), 0);
+            X509_gmtime_adj(X509_getm_notAfter(x509), 3153600000L);
+            X509_set_pubkey(x509, pem_key);
+            X509_sign(x509, pem_key, EVP_sha256());
+
+            if (SSL_CTX_use_certificate(ctx, x509) <= 0)
+            {
+                return -10;
+            }
+
+            use_ssl = true;
+        }
         return 1;
     }
     else
     {
         return -6;
     }
+    return 0;
 }
 
 bool Socket::IsValid() const
@@ -189,12 +258,24 @@ int Socket::AcceptClient()
     }
 
     int new_conn = accept(sock, nullptr, nullptr);
+
     if (new_conn == -1)
     {
         return -2;
     }
     else
     {
+        // 初始化SSL
+        SSL *ssl = nullptr;
+        if (use_ssl)
+        {
+            ssl = SSL_new(ctx);
+            SSL_set_fd(ssl, new_conn);
+            if (SSL_accept(ssl) <= 0)
+            {
+                return -4;
+            }
+        }
         // 当主线程创建一个新线程后，主线程对应的连接会被重置为-1
         // 在这种情况下，不能直接将新的连接信息插入线程表中
         // 否则导致线程表冲突（包含两个主线程对应的连接号）
@@ -211,7 +292,7 @@ int Socket::AcceptClient()
         }
         if (!is_exists)
         {
-            threads.push_back(Thread{current_tid, new_conn, true});
+            threads.push_back(Thread{current_tid, new_conn, true, ssl});
         }
         thread_lock.unlock();
         return 1;
@@ -225,13 +306,24 @@ int Socket::ConnectServer()
         return -1;
     }
 
-    if (connect(sock, (sockaddr *)addr, addr_size) < 0)
+    if (use_ssl)
     {
-        return 0;
+        bio = BIO_new_ssl_connect(ctx);
+        BIO_get_ssl(bio, client_ssl);
+        SSL_set_mode(client_ssl, SSL_MODE_AUTO_RETRY);
+        BIO_set_conn_hostname(bio, (host + ":" + std::to_string(target_port)).c_str());
+        return 1;
     }
     else
     {
-        return 1;
+        if (connect(sock, (sockaddr *)addr, addr_size) < 0)
+        {
+            return 0;
+        }
+        else
+        {
+            return 1;
+        }
     }
 }
 
@@ -244,13 +336,27 @@ int Socket::SendData(unsigned char *send_buff, unsigned length)
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = send(sock, (char *)send_buff, length, 0)) < 0)
+        if (use_ssl)
         {
-            return -2;
+            if ((len = BIO_write(bio, (char *)send_buff, length)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
         else
         {
-            return len;
+            if ((len = send(sock, (char *)send_buff, length, 0)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
     }
     else if (role == SERVER)
@@ -261,13 +367,28 @@ int Socket::SendData(unsigned char *send_buff, unsigned length)
         {
             return -3;
         }
-        if ((len = send(conn, (char *)send_buff, length, 0)) < 0)
+        if (use_ssl)
         {
-            return -2;
+            SSL *ssl = GetSSLConnection(std::this_thread::get_id());
+            if ((len = SSL_write(ssl, send_buff, length)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
         else
         {
-            return len;
+            if ((len = send(conn, (char *)send_buff, length, 0)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
     }
     else
@@ -302,13 +423,27 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
     int len = 0;
     if (role == CLIENT)
     {
-        if ((len = recv(sock, (char *)recv_buff, length, 0)) < 0)
+        if (use_ssl)
         {
-            return -2;
+            if ((len = BIO_read(bio, (char *)recv_buff, length)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
         else
         {
-            return len;
+            if ((len = recv(sock, (char *)recv_buff, length, 0)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
     }
     else if (role == SERVER)
@@ -319,13 +454,28 @@ int Socket::ReceiveData(unsigned char *recv_buff, unsigned length)
         {
             return -3;
         }
-        if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
+        if (use_ssl)
         {
-            return -2;
+            SSL *ssl = GetSSLConnection(std::this_thread::get_id());
+            if ((len = SSL_read(ssl, (char *)recv_buff, length)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
         else
         {
-            return len;
+            if ((len = recv(conn, (char *)recv_buff, length, 0)) < 0)
+            {
+                return -2;
+            }
+            else
+            {
+                return len;
+            }
         }
     }
     else
@@ -358,13 +508,24 @@ void Socket::CloseSocket()
         return;
     }
 
+    if (use_ssl)
+    {
+        if (role == CLIENT)
+        {
+            BIO_free_all(bio);
+            SSL_shutdown(client_ssl);
+            SSL_free(client_ssl);
+        }
+        SSL_CTX_free(ctx);
+    }
+
     valid = false;
     threads.clear();
     role = UNKNOWN;
-    delete[](sockaddr *)addr;
+    delete (sockaddr *)addr;
     addr = nullptr;
     addr_size = 0;
-
+    
     #if defined(__linux__)
     close(sock);
     #elif defined(_WIN32)
@@ -384,6 +545,13 @@ int Socket::CloseConnection()
     if (conn == -1)
     {
         return -1;
+    }
+
+    if (use_ssl)
+    {
+        SSL *ssl = GetSSLConnection(std::this_thread::get_id());
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
     }
 
     #if defined(__linux__)
@@ -406,6 +574,7 @@ void Socket::ResetConnection()
         if (iter->tid == current_tid)
         {
             iter->conn = -1;
+            iter->ssl = nullptr;
             break;
         }
     }
