@@ -287,6 +287,7 @@ int Socket::AcceptClient()
             if (iter->tid == current_tid)
             {
                 iter->conn = new_conn;
+                iter->ssl = ssl;
                 is_exists = true;
             }
         }
@@ -499,6 +500,42 @@ int Socket::ReceiveDataFix(unsigned char *recv_buff, unsigned length)
         received += count;
     }
     return received;
+}
+
+int Socket::SendString(const std::string &str)
+{
+    size_t length = str.length();
+    // 检查字符串长度，无法传输长度超过四字节无符号整数能表示的范围的字符串
+    if ((unsigned long long)length > ((1ULL << 32) - 1))
+    {
+        return -1;
+    }
+    size_t buff_length = length + 5;
+    char *buff = new char[buff_length];
+    buff[0] = length >> 24;
+    buff[1] = length >> 16;
+    buff[2] = length >> 8;
+    buff[3] = length;
+    strcpy(buff + 4, str.c_str());
+    int send_count = SendDataFix(buff, buff_length);
+    delete[]buff;
+    return send_count;
+}
+
+int Socket::ReceiveString(std::string &str)
+{
+    // 接收首部四字节数据，表示数据长度
+    char head_buff[4] = { 0x00 };
+    ReceiveDataFix(head_buff, 4);
+    size_t length = ((size_t)head_buff[0] << 24) |
+                    ((size_t)head_buff[1] << 16) |
+                    ((size_t)head_buff[2] <<  8) |
+                    ((size_t)head_buff[3]);
+    char *buff = new char[length + 1];
+    int recv_count = ReceiveDataFix(buff, length + 1);
+    str = std::string(buff);
+    delete[]buff;
+    return recv_count > 0 ? recv_count + 4 : recv_count;
 }
 
 void Socket::CloseSocket()

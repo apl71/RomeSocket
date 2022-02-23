@@ -82,10 +82,10 @@ public:
     {
         print_mutex.lock();
         std::cout << "my tid = " << std::this_thread::get_id() << std::endl;
-        std::cout << "tid\tconn" << std::endl;
+        std::cout << "tid\tconn\tssl" << std::endl;
         for (auto i : threads)
         {
-            std::cout << i.tid << "\t" << i.conn << std::endl;
+            std::cout << i.tid << "\t" << i.conn << "\t" << i.ssl << std::endl;
         }
         print_mutex.unlock();
     }
