@@ -34,6 +34,8 @@ int main()
     // 线程池测试
     auto start = std::chrono::system_clock::now();
 
+    std::cout << "Start testing." << std::endl;
+
     // 计算密集型
     ThreadPool thread_pool;
     std::vector<std::future<double>> futures;
@@ -60,15 +62,15 @@ int main()
     // 服务密集型
     start = std::chrono::system_clock::now();
     std::vector<std::future<std::tuple<std::string, int, decltype(start)>>> futures_2;
-    constexpr int client_cnt = 1e9;
+    constexpr uint64_t client_cnt = 1e5;
     // 用于计算平均等待时间
     std::array<decltype(start), client_cnt> start_times, end_times;
-    for (int i = 0; i < client_cnt; ++i)
+    for (uint64_t i = 0; i < client_cnt; ++i)
     {
         start_times[i] = std::chrono::system_clock::now();
         futures_2.push_back(thread_pool.AddTask(function_with_return_2, i));
     }
-    for (int i = 0; i < client_cnt; ++i)
+    for (uint64_t i = 0; i < client_cnt; ++i)
     {
         auto [response, id, end_time] = futures_2[i].get();
         end_times[id] = end_time;
@@ -82,8 +84,8 @@ int main()
     std::cout << "Thread pool: " << total_time << "s" << std::endl;
     // 计算最大、最小等待时间和平均等待时间
     std::array<double, client_cnt> times;
-    double total = 0.0, max_time = 0.0, min_time = 1e5;
-    for (int i = 0; i < client_cnt; ++i)
+    double total = 0.0, max_time = 0.0, min_time = 1e9;
+    for (uint64_t i = 0; i < client_cnt; ++i)
     {
         duration = std::chrono::duration_cast<std::chrono::microseconds>(end_times[i] - start_times[i]);
         times[i] = static_cast<double>(duration.count()) *
