@@ -1,5 +1,4 @@
 #include "thread_pool.hpp"
-#include <iostream> // debug
 
 ThreadPool::~ThreadPool()
 {

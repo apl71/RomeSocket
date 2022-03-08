@@ -23,7 +23,9 @@ private:
 
     std::mutex io_mutex; // debug
 public:
-    ThreadPool() : ThreadPool(std::thread::hardware_concurrency(), std::thread::hardware_concurrency()) {}
+    ThreadPool() : ThreadPool(
+                    static_cast<size_t>(std::thread::hardware_concurrency()),
+                    static_cast<size_t>(std::thread::hardware_concurrency())) {}
     ThreadPool(size_t min_threads, size_t max_threads);
     ~ThreadPool();
 

@@ -63,7 +63,7 @@ void PrepareAccept(int sock, struct io_uring *ring, struct sockaddr *client_addr
 {
     // 获取sqe
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
-    io_uring_prep_accept(sqe, sock, client_addr, addr_len, NULL);
+    io_uring_prep_accept(sqe, sock, client_addr, addr_len, 0);
     // 接受用户连接
     struct Request *request = malloc(sizeof(struct Request));
     request->buff = NULL;

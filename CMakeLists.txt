@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(RomeSocket VERSION 0.1)
+project(RomeSocket LANGUAGES C CXX VERSION 0.1)
 
 set(CMAKE_C_COMPILER "gcc")
 set(CMAKE_CXX_COMPILER "g++")
@@ -17,7 +17,8 @@ SET(CMAKE_C_FLAGS_RELEASE "$ENV{CFLAGS} -O3 -Wall -DNDEBUG")
 include_directories(include)
 
 set (SOURCES
-	source/thread_pool.cpp)
+	source/thread_pool.cpp
+	source/romesocket.cpp)
 
 ## 静态库
 add_library(rocket STATIC ${SOURCES})
@@ -42,7 +43,7 @@ target_link_libraries(rocket_shared PUBLIC pthread)
 
 ## 测试程序编译
 set (THREAD_POOL_TEST_1_SOURCES
-	test/thread_pool_test_1.cpp
+	example/thread_pool_test_1.cpp
 	source/thread_pool.cpp)
 
 add_executable(thread_pool_test_1 ${THREAD_POOL_TEST_1_SOURCES})
@@ -51,12 +52,16 @@ target_link_libraries(thread_pool_test_1 PUBLIC pthread)
 
 ## echo服务器测试
 set (ECHO_TEST_SOURCES
-	test/echo.c)
-set (ECHO_CLIENT_TEST_SOURCES
-	test/echo_client.c)
+	example/echo_server.cpp
+	source/romesocket.cpp
+	source/thread_pool.cpp)
 
 add_executable(echo_server ${ECHO_TEST_SOURCES})
+target_link_libraries(echo_server PUBLIC uring pthread)
+
+set (ECHO_CLIENT_TEST_SOURCES
+	example/echo_client.c)
+
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
-target_link_libraries(echo_server PUBLIC uring)
 target_link_libraries(echo_client PUBLIC uring)

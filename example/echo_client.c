@@ -7,7 +7,7 @@
 
 #define SERVER "localhost"
 #define PORT 8000
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 8192
 
 int main()
 {
