@@ -33,7 +33,13 @@ set_target_properties(rocket_shared PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 target_link_libraries(rocket PUBLIC pthread)
 target_link_libraries(rocket_shared PUBLIC pthread)
 
-install(TARGETS rocket rocket_shared DESTINATION /usr/local/lib)
+## 指定公共头文件
+set_target_properties(rocket_shared PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
+set_target_properties(rocket PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
+
+install(TARGETS rocket rocket_shared
+				LIBRARY DESTINATION /usr/local/lib
+				PUBLIC_HEADER DESTINATION /usr/local/include)
 # if (UNIX)
 # 	install(TARGETS rocket rocket_shared DESTINATION /usr/lib)
 # elseif (WIN32)
