@@ -4,7 +4,7 @@
 class EchoServer : public Rocket
 {
 public:
-    EchoServer(uint16_t port) : Rocket(port) {}
+    using Rocket::Rocket;
 
     void OnRead(char *buff, size_t size, int clinet_id) override
     {
@@ -13,7 +13,7 @@ public:
         strcat(to_write, "\"");
         if (Write(to_write, 8192, clinet_id, true) < 0)
         {
-            std::cout << "Message too long." << std::endl;
+            std::cout << "Error when writing." << std::endl;
         }
     }
 };

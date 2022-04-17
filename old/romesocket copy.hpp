@@ -6,7 +6,6 @@
 #include <cstring>
 #include <liburing.h>
 #include <memory>
-#include <mutex>
 
 #define REQUEST_TYPE_ACCEPT 1
 #define REQUEST_TYPE_READ 2
@@ -29,8 +28,7 @@ private:
 
     // io uring
     io_uring _ring;
-    size_t _ring_size = 512;
-    std::mutex _ring_mutex;
+    size_t _ring_size = 64;
 
     int _max_connection = 300;
 
@@ -42,11 +40,11 @@ private:
     // 提交所有任务
     void Submit();
     // 将一个接受用户的请求加入sq
-    int PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len);
+    void PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len);
     // 将一个读事件的请求加入sq
-    int PrepareRead(int client_sock);
+    void PrepareRead(int client_sock);
     // 将一个写事件的请求加入sq
-    int PrepareWrite(int client_sock, char *to_write, size_t size);
+    void PrepareWrite(int client_sock, char *to_write, size_t size);
     // 将Request结构体清空
     void FreeRequest(Request **request);
 

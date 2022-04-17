@@ -4,8 +4,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#include <iostream>
-
 Rocket::Rocket(uint16_t port) : _port(port)
 {
     pool = new ThreadPool();
@@ -50,20 +48,13 @@ void Rocket::Initialize(int port)
 
 void Rocket::Submit()
 {
-    _ring_mutex.lock();
-    std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
-    _ring_mutex.unlock();
+    io_uring_submit(&_ring);
 }
 
-int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
+void Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
 {
     // 获取sqe
-    _ring_mutex.lock();
     struct io_uring_sqe *sqe = io_uring_get_sqe(&_ring);
-    if (sqe == nullptr)
-    {
-        return -1;
-    }
     io_uring_prep_accept(sqe, _sock, client_addr, addr_len, 0);
     // 接受用户连接
     struct Request *request = new Request;
@@ -71,33 +62,21 @@ int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
     request->client_sock = 0;
     request->type = REQUEST_TYPE_ACCEPT;
     io_uring_sqe_set_data(sqe, request);
-    std::cout << "PrepareAccept" << std::endl;
-    _ring_mutex.unlock();
-    return 1;
 }
 
-int Rocket::PrepareRead(int client_sock)
+void Rocket::PrepareRead(int client_sock)
 {
-    _ring_mutex.lock();
     struct io_uring_sqe *read_sqe = io_uring_get_sqe(&_ring);
-    if (read_sqe == nullptr)
-    {
-        return -1;
-    }
     char *read_buff = new char[_max_buffer_size];
     io_uring_prep_read(read_sqe, client_sock, read_buff, _max_buffer_size, 0);
-    
-    Request *req = new Request;
+    struct Request *req = new Request;
     req->buff = read_buff;
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_READ;
     io_uring_sqe_set_data(read_sqe, req);
-    std::cout << "PrepareRead" << std::endl;
-    _ring_mutex.unlock();
-    return 1;
 }
 
-int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
+void Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
 {
     char *write_buff = new char[_max_buffer_size];
     strncpy(write_buff, to_write, size);
@@ -105,19 +84,10 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
     req->buff = write_buff;
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_WRITE;
-    _ring_mutex.lock();
-    io_uring_sqe *write_sqe = io_uring_get_sqe(&_ring);
-    if (write_sqe == nullptr)
-    {
-        return -1;
-    }
+    struct io_uring_sqe *write_sqe = io_uring_get_sqe(&_ring);
     io_uring_prep_write(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
-    
     strcpy(write_buff, to_write);
     io_uring_sqe_set_data(write_sqe, req);
-    std::cout << "PrepareWrite" << std::endl;
-    _ring_mutex.unlock();
-    return 1;
 }
 
 void Rocket::FreeRequest(Request **request)
@@ -142,34 +112,24 @@ void Rocket::Start()
         throw;
     }
 
-    sockaddr client_addr;
+    struct sockaddr client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    if (PrepareAccept(&client_addr, &addr_len) <= 0)
-    {
-        std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
-        exit(0);
-    }
+    PrepareAccept(&client_addr, &addr_len);
     Submit();
-
-    __kernel_timespec ts = {
-        .tv_sec = 0L,
-        .tv_nsec = 1L
-    };
 
     while (1)
     {
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
-        if (std::unique_lock<std::mutex> lock(_ring_mutex);
-            io_uring_wait_cqe_timeout(&_ring, &cqe, &ts) != 0)
+        io_uring_wait_cqe(&_ring, &cqe);
+        if (cqe->res < 0)
         {
-            // std::cout << "Timeout, continue." << std::endl;
+            io_uring_cqe_seen(&_ring, cqe);
             continue;
         }
-        if (cqe->res <= 0)
+        else if (cqe->res == 0)
         {
-            std::unique_lock<std::mutex> lock(_ring_mutex);
             io_uring_cqe_seen(&_ring, cqe);
             continue;
         }
@@ -180,17 +140,10 @@ void Rocket::Start()
             // 接受用户的事件，由于请求队列中的“接受用户”的任务被消耗
             // 这里需要创建一个新的，来保证其他用户能够连接服务器
             // 总之，sq中应该总有一个任务，来接受用户连接
-            if (PrepareAccept(&client_addr, &addr_len) <= 0)
-            {
-                std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
-                exit(0);
-            }
+            PrepareAccept(&client_addr, &addr_len);
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
-            if (PrepareRead(cqe->res) <= 0)
-            {
-                std::cout << "[Error] Error: fail to prepare read." << std::endl;
-                continue;
-            }
+            PrepareRead(cqe->res);
+            Submit();
             break;
         case REQUEST_TYPE_READ:
         {
@@ -200,34 +153,19 @@ void Rocket::Start()
             strncpy(buffer, cqe_request->buff, _max_buffer_size);
             int *client_sock = new int;
             *client_sock = cqe_request->client_sock;
-            if (!buffer || !client_sock)
-            {
-                throw;
-            }
-            pool->AddTask([=, this](){
+            pool->AddTask([&](){
                 OnRead(buffer, _max_buffer_size, *client_sock);
-                if (buffer)
-                {
-                    delete[]buffer;
-                }
-                if (client_sock)
-                {
-                    delete client_sock;
-                }
+                delete[]buffer;
+                delete client_sock;
             });
             // OnRead(cqe_request->buff, _max_buffer_size, cqe_request->client_sock);
-            // delete[]buffer;
-            // delete client_sock;
             break;
         }
         case REQUEST_TYPE_WRITE:
             break;
         }
-        Submit();
-        _ring_mutex.lock();
         io_uring_cqe_seen(&_ring, cqe);
         FreeRequest(&cqe_request);
-        _ring_mutex.unlock();
     }
 }
 
@@ -247,19 +185,11 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more)
     {
         return -1;
     }
-    if (PrepareWrite(client_id, buff, size) <= 0)
-    {
-        std::cout << "[Error] Error: fail to prepare write." << std::endl;
-        return -2;
-    }
+    PrepareWrite(client_id, buff, size);
     if (more)
     {
-        if (PrepareRead(client_id) <= 0)
-        {
-            std::cout << "[Error] Error: fail to prepare read." << std::endl;
-            return -2;
-        }
+        PrepareRead(client_id);
     }
-    //Submit();
+    Submit();
     return 1;
 }

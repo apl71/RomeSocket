@@ -8,7 +8,7 @@ set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-SET(CMAKE_BUILD_TYPE "Debug")
+SET(CMAKE_BUILD_TYPE "Release")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -DNDEBUG")
 SET(CMAKE_C_FLAGS_DEBUG "$ENV{CFLAGS} -O0 -Wall -g2 -ggdb")
@@ -33,7 +33,7 @@ set_target_properties(rocket_shared PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 target_link_libraries(rocket PUBLIC pthread)
 target_link_libraries(rocket_shared PUBLIC pthread)
 
-
+install(TARGETS rocket rocket_shared DESTINATION /usr/local/lib)
 # if (UNIX)
 # 	install(TARGETS rocket rocket_shared DESTINATION /usr/lib)
 # elseif (WIN32)
@@ -60,8 +60,9 @@ add_executable(echo_server ${ECHO_TEST_SOURCES})
 target_link_libraries(echo_server PUBLIC uring pthread)
 
 set (ECHO_CLIENT_TEST_SOURCES
-	example/echo_client.c)
+	example/echo_client.cpp
+	source/thread_pool.cpp)
 
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
-target_link_libraries(echo_client PUBLIC uring)
+target_link_libraries(echo_client PUBLIC uring pthread)
