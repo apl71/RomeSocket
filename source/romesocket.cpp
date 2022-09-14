@@ -85,6 +85,7 @@ int Rocket::PrepareRead(int client_sock)
         return -1;
     }
     char *read_buff = new char[_max_buffer_size];
+    memset(read_buff, 0, _max_buffer_size);
     io_uring_prep_read(read_sqe, client_sock, read_buff, _max_buffer_size, 0);
     
     Request *req = new Request;
@@ -115,7 +116,8 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
     
     strcpy(write_buff, to_write);
     io_uring_sqe_set_data(write_sqe, req);
-    std::cout << "PrepareWrite" << std::endl;
+    std::cout << "PrepareWrite task: " << size << " bytes." << std::endl;
+    std::cout << "Ready to write: " << write_buff << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -221,6 +223,7 @@ void Rocket::Start()
             break;
         }
         case REQUEST_TYPE_WRITE:
+            std::cout << "Write: " << cqe_request->buff << " done." << std::endl;
             break;
         }
         Submit();
