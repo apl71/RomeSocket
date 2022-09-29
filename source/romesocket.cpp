@@ -101,7 +101,7 @@ int Rocket::PrepareRead(int client_sock)
 int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
 {
     char *write_buff = new char[_max_buffer_size];
-    strncpy(write_buff, to_write, size);
+    memcpy(write_buff, to_write, size);
     Request *req = new Request;
     req->buff = write_buff;
     req->client_sock = client_sock;
@@ -114,10 +114,10 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
     }
     io_uring_prep_write(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
     
-    strcpy(write_buff, to_write);
+    //strcpy(write_buff, to_write);
     io_uring_sqe_set_data(write_sqe, req);
-    std::cout << "PrepareWrite task: " << size << " bytes." << std::endl;
-    std::cout << "Ready to write: " << write_buff << std::endl;
+    //std::cout << "PrepareWrite task: " << size << " bytes." << std::endl;
+    //std::cout << "Ready to write: " << write_buff << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -199,7 +199,7 @@ void Rocket::Start()
             // 读取到了用户的输入
             // 提交一个写任务，把用户的输入echo出去(或者加个私货
             char *buffer = new char[_max_buffer_size];
-            strncpy(buffer, cqe_request->buff, _max_buffer_size);
+            memcpy(buffer, cqe_request->buff, _max_buffer_size);
             int *client_sock = new int;
             *client_sock = cqe_request->client_sock;
             if (!buffer || !client_sock)
