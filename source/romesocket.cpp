@@ -51,7 +51,7 @@ void Rocket::Initialize(int port)
 void Rocket::Submit()
 {
     _ring_mutex.lock();
-    std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
+    // std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
     _ring_mutex.unlock();
 }
 
@@ -71,7 +71,7 @@ int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
     request->client_sock = 0;
     request->type = REQUEST_TYPE_ACCEPT;
     io_uring_sqe_set_data(sqe, request);
-    std::cout << "PrepareAccept" << std::endl;
+    // std::cout << "PrepareAccept" << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -93,7 +93,7 @@ int Rocket::PrepareRead(int client_sock)
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_READ;
     io_uring_sqe_set_data(read_sqe, req);
-    std::cout << "PrepareRead" << std::endl;
+    // std::cout << "PrepareRead" << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -148,7 +148,7 @@ void Rocket::Start()
     socklen_t addr_len = sizeof(client_addr);
     if (PrepareAccept(&client_addr, &addr_len) <= 0)
     {
-        std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
+        // std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
         exit(0);
     }
     Submit();
@@ -184,13 +184,13 @@ void Rocket::Start()
             // 总之，sq中应该总有一个任务，来接受用户连接
             if (PrepareAccept(&client_addr, &addr_len) <= 0)
             {
-                std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
+                // std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
                 exit(0);
             }
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
             if (PrepareRead(cqe->res) <= 0)
             {
-                std::cout << "[Error] Error: fail to prepare read." << std::endl;
+                // std::cout << "[Error] Error: fail to prepare read." << std::endl;
                 continue;
             }
             break;
@@ -223,7 +223,7 @@ void Rocket::Start()
             break;
         }
         case REQUEST_TYPE_WRITE:
-            std::cout << "Write: " << cqe_request->buff << " done." << std::endl;
+            // std::cout << "Write: " << cqe_request->buff << " done." << std::endl;
             break;
         }
         Submit();
@@ -252,14 +252,14 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more)
     }
     if (PrepareWrite(client_id, buff, size) <= 0)
     {
-        std::cout << "[Error] Error: fail to prepare write." << std::endl;
+        // std::cout << "[Error] Error: fail to prepare write." << std::endl;
         return -2;
     }
     if (more)
     {
         if (PrepareRead(client_id) <= 0)
         {
-            std::cout << "[Error] Error: fail to prepare read." << std::endl;
+            // std::cout << "[Error] Error: fail to prepare read." << std::endl;
             return -2;
         }
     }
