@@ -51,7 +51,7 @@ void Rocket::Initialize(int port)
 void Rocket::Submit()
 {
     _ring_mutex.lock();
-    // std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
+    std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
     _ring_mutex.unlock();
 }
 
