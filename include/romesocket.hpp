@@ -7,6 +7,7 @@
 #include <liburing.h>
 #include <memory>
 #include <mutex>
+#include <map>
 
 #define REQUEST_TYPE_ACCEPT 1
 #define REQUEST_TYPE_READ 2
@@ -36,6 +37,10 @@ private:
 
     // 工作线程池
     ThreadPool *pool;
+
+    // 暂存未完成的io
+    // int -> client_id
+    std::map<int, std::vector<char *>> wait_queue;
 
     // 初始化套接字
     void Initialize(int port);
