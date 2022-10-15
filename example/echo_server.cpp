@@ -8,8 +8,9 @@ public:
 
     void OnRead(char *buff, size_t size, int clinet_id) override
     {
+        std::cout << "I receive a message whose length is: " << size << std::endl;
         char to_write[8192] = "Hello, you say \"";
-        strncat(to_write, buff, size);
+        strncat(to_write, buff, 8000);
         strcat(to_write, "\"");
         if (Write(to_write, 8192, clinet_id, true) < 0)
         {
