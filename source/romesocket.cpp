@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-
+#include "exception.hpp"
 #include <iostream>
 
 Rocket::Rocket(uint16_t port) : _port(port)
@@ -51,7 +51,7 @@ void Rocket::Initialize(int port)
 void Rocket::Submit()
 {
     _ring_mutex.lock();
-    std::cout << "Get lock, Submit " << io_uring_submit(&_ring) << " SQEs" << std::endl;
+    io_uring_submit(&_ring);
     _ring_mutex.unlock();
 }
 
@@ -141,7 +141,7 @@ void Rocket::Start()
     Initialize(_port);
     if (_sock == -1)
     {
-        throw;
+        throw SocketException();
     }
 
     sockaddr client_addr;
@@ -196,27 +196,66 @@ void Rocket::Start()
             break;
         case REQUEST_TYPE_READ:
         {
-            // 读取到了用户的输入
-            // 提交一个写任务，把用户的输入echo出去(或者加个私货
+            // 读取到了输入
             char *buffer = new char[_max_buffer_size];
-            memcpy(buffer, cqe_request->buff, _max_buffer_size);
-            int *client_sock = new int;
-            *client_sock = cqe_request->client_sock;
-            if (!buffer || !client_sock)
-            {
-                throw;
+            memcpy(buffer, cqe_request->buff + 1, _max_buffer_size - 1);
+            // 支持任意长度传输，每个“包”的首字节表示该报文是否为最后一个
+            // 0xFF表示最后一个报文 非0xFF表示该报文是所有块中的第几块
+            // TODO:这样做虽然可以发送更长的报文，但仍然有大小限制，可以考虑扩展到4字节
+            char flag = cqe_request->buff[0];
+            int client_sock = cqe_request->client_sock;
+            if ((unsigned char)flag != 0xFF) {
+                // 找到暂存的缓冲区
+                auto iter = wait_queue.find(client_sock);
+                if (iter == wait_queue.end()) {
+                    // 新增一个表项
+                    wait_queue[client_sock] = std::vector<char *>{buffer};
+                } else {
+                    iter->second.push_back(buffer);
+                }
+                // 提交一个新的读任务
+                PrepareRead(client_sock);
+            } else {
+                unsigned blocks = 1;
+                auto iter = wait_queue.find(client_sock);
+                // 如果前面还有项，一起拿出来
+                if (iter != wait_queue.end()) {
+                    blocks += iter->second.size();
+                }
+                char *complete_buffer = new char[blocks * (_max_buffer_size - 1)];
+                // 复制内存，并清理结构体中的动态内存
+                // TODO:如果能提前知道长度，就可以一次性申请大内存，就不必复制一遍了
+                unsigned pointer = 0;
+                for (auto i : iter->second) {
+                    if (i) {
+                        memcpy(complete_buffer + pointer, i, _max_buffer_size - 1);
+                        delete[]i;
+                        pointer += (_max_buffer_size - 1);
+                    }
+                }
+                // 执行读取事件
+                pool->AddTask([=, this](){
+                    OnRead(complete_buffer, pointer, client_sock);
+                    delete[]complete_buffer;
+                });
             }
-            pool->AddTask([=, this](){
-                OnRead(buffer, _max_buffer_size, *client_sock);
-                if (buffer)
-                {
-                    delete[]buffer;
-                }
-                if (client_sock)
-                {
-                    delete client_sock;
-                }
-            });
+            // // int *client_sock = new int;
+            // // *client_sock = cqe_request->client_sock;
+            // if (!buffer || !client_sock)
+            // {
+            //     throw;
+            // }
+            // pool->AddTask([=, this](){
+            //     OnRead(buffer, _max_buffer_size, client_sock);
+            //     // if (buffer)
+            //     // {
+            //     //     delete[]buffer;
+            //     // }
+            //     // if (client_sock)
+            //     // {
+            //     //     delete client_sock;
+            //     // }
+            // });
             // OnRead(cqe_request->buff, _max_buffer_size, cqe_request->client_sock);
             // delete[]buffer;
             // delete client_sock;
