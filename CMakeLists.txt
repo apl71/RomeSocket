@@ -8,7 +8,7 @@ set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-SET(CMAKE_BUILD_TYPE "Release")
+SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -DNDEBUG")
 SET(CMAKE_C_FLAGS_DEBUG "$ENV{CFLAGS} -O0 -Wall -g2 -ggdb")
@@ -67,8 +67,17 @@ target_link_libraries(echo_server PUBLIC uring pthread)
 
 set (ECHO_CLIENT_TEST_SOURCES
 	example/echo_client.cpp
-	source/thread_pool.cpp)
+	source/thread_pool.cpp
+    source/client.c)
 
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
 target_link_libraries(echo_client PUBLIC uring pthread)
+
+## 客户端
+set (CLIENT_SOURCES
+    source/client.c)
+
+add_library(rocketc SHARED ${SOURCES})
+
+set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h")
