@@ -204,15 +204,17 @@ void Rocket::Start()
             // TODO:这样做虽然可以发送更长的报文，但仍然有大小限制，可以考虑扩展到4字节
             char flag = cqe_request->buff[0];
             int client_sock = cqe_request->client_sock;
+            
+            // 找到暂存的缓冲区
+            auto iter = wait_queue.find(client_sock);
+            if (iter == wait_queue.end()) {
+                // 新增一个表项
+                wait_queue[client_sock] = std::vector<char *>{buffer};
+            } else {
+                iter->second.push_back(buffer);
+            }
+
             if ((unsigned char)flag != 0xFF) {
-                // 找到暂存的缓冲区
-                auto iter = wait_queue.find(client_sock);
-                if (iter == wait_queue.end()) {
-                    // 新增一个表项
-                    wait_queue[client_sock] = std::vector<char *>{buffer};
-                } else {
-                    iter->second.push_back(buffer);
-                }
                 // 提交一个新的读任务
                 PrepareRead(client_sock);
             } else {
@@ -239,26 +241,6 @@ void Rocket::Start()
                     delete[]complete_buffer;
                 });
             }
-            // // int *client_sock = new int;
-            // // *client_sock = cqe_request->client_sock;
-            // if (!buffer || !client_sock)
-            // {
-            //     throw;
-            // }
-            // pool->AddTask([=, this](){
-            //     OnRead(buffer, _max_buffer_size, client_sock);
-            //     // if (buffer)
-            //     // {
-            //     //     delete[]buffer;
-            //     // }
-            //     // if (client_sock)
-            //     // {
-            //     //     delete client_sock;
-            //     // }
-            // });
-            // OnRead(cqe_request->buff, _max_buffer_size, cqe_request->client_sock);
-            // delete[]buffer;
-            // delete client_sock;
             break;
         }
         case REQUEST_TYPE_WRITE:
