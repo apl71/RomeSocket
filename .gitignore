@@ -31,8 +31,11 @@
 *.out
 *.app
 
-build/*
+build/debug/*
+build/release/*
 !build/.gitkeep
+!build/debug/.gitkeep
+!build/release/.gitkeep
 
 .vs/*
 
