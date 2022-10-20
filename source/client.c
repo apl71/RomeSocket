@@ -6,7 +6,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-const char *SERVER = "localhost";
 const unsigned BLOCK_SIZE = 8192;
 
 int RomeSocketConnect(const char *server, const unsigned port) {
@@ -16,7 +15,7 @@ int RomeSocketConnect(const char *server, const unsigned port) {
     memset(&addr, 0, addr_size);
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
-    inet_pton(AF_INET, SERVER, &addr.sin_addr);
+    inet_pton(AF_INET, server, &addr.sin_addr);
     connect(sock, (struct sockaddr *)&addr, addr_size);
     return sock;
 }
@@ -32,6 +31,45 @@ void RomeSocketSend(int sock, const char *buffer, const unsigned size) {
             length = size - start;
         }
         memcpy(send_buff + 1, buffer + start, length);
-        send(sock, send_buff, length, 0);
+        send(sock, send_buff, BLOCK_SIZE, 0);
     }
+}
+
+void ReceiveFullBlock(int sock, char *buffer) {
+    size_t got = 0, remain = BLOCK_SIZE;
+    while (remain > 0) {
+        size_t size = recv(sock, buffer + got, remain, 0);
+        got += size;
+        remain -= size;
+    }
+}
+
+// 输入一个值为空的指针作为缓冲区
+// 需要手动回收
+unsigned RomeSocketReceive(int sock, char **buffer) {
+    char *temp_list[256] = {NULL};
+    int count = 0;
+    while (1) {
+        char *temp = malloc(sizeof(char) * BLOCK_SIZE);
+        memset(temp, 0, BLOCK_SIZE);
+        printf("waiting for block %d\n", count);
+        ReceiveFullBlock(sock, temp);
+        printf("receive block %d\n", count);
+        temp_list[count++] = temp;
+        if ((unsigned char)temp[0] == 0xFF) {
+            break;
+        }
+    }
+    // 组装
+    size_t total_length = (BLOCK_SIZE - 1) * count;
+    *buffer = malloc(sizeof(char) * total_length);
+    memset(*buffer, 0, total_length);
+    size_t offset = 0;
+    for (int i = 0; i < count; ++i) {
+        memcpy(*buffer + offset, temp_list[i] + 1, BLOCK_SIZE - 1);
+        offset += (BLOCK_SIZE - 1);
+        // 清除缓存
+        free(temp_list[i]);
+    }
+    return offset;
 }
