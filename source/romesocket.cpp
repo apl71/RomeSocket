@@ -98,7 +98,7 @@ int Rocket::PrepareRead(int client_sock)
     return 1;
 }
 
-int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
+int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link)
 {
     char *write_buff = new char[_max_buffer_size];
     memcpy(write_buff, to_write, size);
@@ -118,6 +118,9 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size)
     io_uring_sqe_set_data(write_sqe, req);
     //std::cout << "PrepareWrite task: " << size << " bytes." << std::endl;
     //std::cout << "Ready to write: " << write_buff << std::endl;
+    if (link) {
+        write_sqe->flags |= IOSQE_IO_LINK;
+    }
     _ring_mutex.unlock();
     return 1;
 }
@@ -265,25 +268,27 @@ Rocket::~Rocket()
     delete pool;
 }
 
-int Rocket::Write(char *buff, size_t size, int client_id, bool more)
-{
-    if (size > _max_buffer_size)
-    {
-        return -1;
-    }
-    if (PrepareWrite(client_id, buff, size) <= 0)
-    {
-        // std::cout << "[Error] Error: fail to prepare write." << std::endl;
-        return -2;
-    }
-    if (more)
-    {
-        if (PrepareRead(client_id) <= 0)
-        {
-            // std::cout << "[Error] Error: fail to prepare read." << std::endl;
+int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
+    // 拆分为大小为8191（_max_buffer_size - 1）的块
+    unsigned blocks = size / (_max_buffer_size - 1) + 1;
+    size_t offset = 0;
+    for (unsigned i = 0; i < blocks; ++i) {
+        char buffer[_max_buffer_size];
+        memset(buffer, 0, _max_buffer_size);
+        buffer[0] = (i == blocks - 1) ? 0xFF : (char)i;
+        unsigned copy_size = (size - offset > _max_buffer_size - 1) ? (_max_buffer_size - 1) : (size - offset);
+        memcpy(buffer + 1, buff + offset, copy_size);
+        offset += (_max_buffer_size - 1);
+        if (PrepareWrite(client_id, buffer, _max_buffer_size, i < blocks - 1) <= 0) {
             return -2;
         }
     }
-    //Submit();
+    
+    if (more) {
+        if (PrepareRead(client_id) <= 0) {
+            return -2;
+        }
+    }
+    Submit();
     return 1;
 }
