@@ -9,6 +9,8 @@ int RomeSocketConnect(const char *server, const unsigned port);
 
 void RomeSocketSend(int sock, const char *buffer, const unsigned size);
 
+unsigned RomeSocketReceive(int sock, char **buffer);
+
 #ifdef __cplusplus
 }
 #endif
