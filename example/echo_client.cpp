@@ -6,6 +6,7 @@
 #include <string.h>
 #include <mutex>
 #include <fstream>
+#include <iostream>
 #include "thread_pool.hpp"
 #include "client.h"
 
@@ -37,16 +38,20 @@ void go(int id)
     char *send_buff = new char[(unsigned)size + 1];
     ifs.read(send_buff, (unsigned)size);
     send_buff[size] = 0x00;
-    char recv_buff[8192];
     for (int i = 0; i < 1; ++i)
     {
         // sprintf(send_buff, "Hello, I'm thread %d, request %d", id, i);
         // send(sock, send_buff, BUFFER_SIZE, 0);
         RomeSocketSend(sock, send_buff, (unsigned)size + 1);
-        recv(sock, recv_buff, 8192, 0);
+        char *buffer = NULL;
+        unsigned length = RomeSocketReceive(sock, &buffer);
         io_mutex.lock();
-        printf("%s\n", recv_buff);
+        for (unsigned i = 0; i < length; ++i) {
+            std::cout << buffer[i];
+        }
+        std::cout << std::endl;
         io_mutex.unlock();
+        free(buffer);
     }
 
     ifs.close();
