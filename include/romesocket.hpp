@@ -51,7 +51,7 @@ private:
     // 将一个读事件的请求加入sq
     int PrepareRead(int client_sock);
     // 将一个写事件的请求加入sq
-    int PrepareWrite(int client_sock, char *to_write, size_t size);
+    int PrepareWrite(int client_sock, char *to_write, size_t size, bool link = false);
     // 将Request结构体清空
     void FreeRequest(Request **request);
 
