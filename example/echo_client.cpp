@@ -51,7 +51,7 @@ void go(int id)
         }
         std::cout << std::endl;
         io_mutex.unlock();
-        free(buffer);
+        RomeSocketClearBuffer(&buffer);
     }
 
     ifs.close();
