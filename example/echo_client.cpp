@@ -8,7 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include "thread_pool.hpp"
-#include "client.h"
+#include "romesocket_client.h"
 
 #define SERVER "localhost"
 #define PORT 8000
@@ -35,21 +35,19 @@ void go(int id)
     }
     auto size = ifs.tellg();
     ifs.seekg(0, std::ios::beg);
-    char *send_buff = new char[(unsigned)size + 1];
+    char *send_buff = new char[(unsigned)size];
     ifs.read(send_buff, (unsigned)size);
     send_buff[size] = 0x00;
     for (int i = 0; i < 1; ++i)
     {
         // sprintf(send_buff, "Hello, I'm thread %d, request %d", id, i);
         // send(sock, send_buff, BUFFER_SIZE, 0);
-        RomeSocketSend(sock, send_buff, (unsigned)size + 1);
+        RomeSocketSend(sock, send_buff, (unsigned)size);
         char *buffer = NULL;
         unsigned length = RomeSocketReceive(sock, &buffer);
         io_mutex.lock();
-        for (unsigned i = 0; i < length; ++i) {
-            std::cout << buffer[i];
-        }
-        std::cout << std::endl;
+        // io
+        std::cout << "get message length: " << length << std::endl;
         io_mutex.unlock();
         RomeSocketClearBuffer(&buffer);
     }
