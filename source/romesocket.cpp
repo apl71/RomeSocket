@@ -202,21 +202,25 @@ void Rocket::Start()
             // 读取到了输入
             char *buffer = new char[_max_buffer_size];
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
-            // 支持任意长度传输，每个“包”的首字节表示该报文是否为最后一个
-            // 0xFF表示最后一个报文 非0xFF表示该报文是所有块中的第几块
-            // TODO:这样做虽然可以发送更长的报文，但仍然有大小限制，可以考虑扩展到4字节
+            // 支持任意长度传输，每个“包”的首两字节为标志字节，前两位为非00表示后续有块
+            // 11表示最后一个报文 后14位表示该缓冲区中的有效数据长度
             char flag = buffer[0];
+            uint16_t length = uint16_t(buffer[1]) << 8 | (uint16_t(buffer[2]) & 0x00FF);
+            std::cout << "received packet " << (unsigned)flag << ": length = " << length << std::endl;
+            if (length > _max_buffer_size - SERVER_HEADER_LENGTH) {
+                length = _max_buffer_size - SERVER_HEADER_LENGTH;
+            }
             int client_sock = cqe_request->client_sock;
             
             // 找到暂存的缓冲区
             auto iter = wait_queue.find(client_sock);
             if (iter == wait_queue.end()) {
                 // 新增一个表项
-                wait_queue[client_sock] = std::vector<char *>{buffer};
+                wait_queue[client_sock] = std::vector<Buffer>{{buffer, flag, length}};
             } else {
-                iter->second.push_back(buffer);
-                std::sort(iter->second.begin(), iter->second.end(), [=](char *a, char *b){
-                    return (unsigned char)a[0] < (unsigned char)b[0];
+                iter->second.push_back({buffer, flag, length});
+                std::sort(iter->second.begin(), iter->second.end(), [=](Buffer a, Buffer b){
+                    return (unsigned char)a.flag < (unsigned char)b.flag;
                 });
             }
 
@@ -230,21 +234,26 @@ void Rocket::Start()
                 if (iter != wait_queue.end()) {
                     blocks += iter->second.size();
                 }
-                char *complete_buffer = new char[blocks * (_max_buffer_size - 1)];
-                memset(complete_buffer, 0, blocks * (_max_buffer_size - 1));
+                // 计算总长度
+                unsigned total_length = 0;
+                for (auto i : iter->second) {
+                    total_length += i.length;
+                }
+                char *complete_buffer = new char[total_length];
+                memset(complete_buffer, 0, total_length);
                 // 复制内存，并清理结构体中的动态内存
                 // TODO:如果能提前知道长度，就可以一次性申请大内存，就不必复制一遍了
                 unsigned pointer = 0;
                 for (auto i : iter->second) {
-                    if (i) {
-                        memcpy(complete_buffer + pointer, i + 1, _max_buffer_size - 1);
-                        delete[]i;
-                        pointer += (_max_buffer_size - 1);
+                    if (i.buffer) {
+                        memcpy(complete_buffer + pointer, i.buffer + SERVER_HEADER_LENGTH, i.length);
+                        delete[]i.buffer;
+                        pointer += (_max_buffer_size - SERVER_HEADER_LENGTH);
                     }
                 }
                 // 执行读取事件
                 pool->AddTask([=, this](){
-                    OnRead(complete_buffer, pointer, client_sock);
+                    OnRead(complete_buffer, total_length, client_sock);
                     delete[]complete_buffer;
                 });
             }
@@ -274,15 +283,18 @@ Rocket::~Rocket()
 
 int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     // 拆分为大小为8191（_max_buffer_size - 1）的块
-    unsigned blocks = size / (_max_buffer_size - 1) + 1;
+    unsigned blocks = size / (_max_buffer_size - SERVER_HEADER_LENGTH) + 1;
     size_t offset = 0;
     for (unsigned i = 0; i < blocks; ++i) {
         char buffer[_max_buffer_size];
         memset(buffer, 0, _max_buffer_size);
         buffer[0] = (i == blocks - 1) ? 0xFF : (char)i;
-        unsigned copy_size = (size - offset > _max_buffer_size - 1) ? (_max_buffer_size - 1) : (size - offset);
-        memcpy(buffer + 1, buff + offset, copy_size);
-        offset += (_max_buffer_size - 1);
+        unsigned copy_size = (size - offset > _max_buffer_size - SERVER_HEADER_LENGTH) ?
+            (_max_buffer_size - SERVER_HEADER_LENGTH) : (size - offset);
+        buffer[1] = copy_size >> 8;
+        buffer[2] = copy_size;
+        memcpy(buffer + SERVER_HEADER_LENGTH, buff + offset, copy_size);
+        offset += (_max_buffer_size - SERVER_HEADER_LENGTH);
         if (PrepareWrite(client_id, buffer, _max_buffer_size, i < blocks - 1) <= 0) {
             return -2;
         }
