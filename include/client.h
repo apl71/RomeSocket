@@ -11,6 +11,8 @@ void RomeSocketSend(int sock, const char *buffer, const unsigned size);
 
 unsigned RomeSocketReceive(int sock, char **buffer);
 
+void RomeSocketClearBuffer(char **buffer);
+
 #ifdef __cplusplus
 }
 #endif
