@@ -13,6 +13,8 @@
 #define REQUEST_TYPE_READ 2
 #define REQUEST_TYPE_WRITE 3
 
+constexpr unsigned SERVER_HEADER_LENGTH = 3;
+
 struct Request
 {
     int type;
@@ -39,8 +41,13 @@ private:
     ThreadPool *pool;
 
     // 暂存未完成的io
+    struct Buffer {
+        char *buffer;
+        char flag;
+        uint16_t length;
+    };
     // int -> client_id
-    std::map<int, std::vector<char *>> wait_queue;
+    std::map<int, std::vector<Buffer>> wait_queue;
 
     // 初始化套接字
     void Initialize(int port);
