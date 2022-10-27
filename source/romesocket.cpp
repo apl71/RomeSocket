@@ -201,11 +201,11 @@ void Rocket::Start()
         {
             // 读取到了输入
             char *buffer = new char[_max_buffer_size];
-            memcpy(buffer, cqe_request->buff + 1, _max_buffer_size - 1);
+            memcpy(buffer, cqe_request->buff, _max_buffer_size);
             // 支持任意长度传输，每个“包”的首字节表示该报文是否为最后一个
             // 0xFF表示最后一个报文 非0xFF表示该报文是所有块中的第几块
             // TODO:这样做虽然可以发送更长的报文，但仍然有大小限制，可以考虑扩展到4字节
-            char flag = cqe_request->buff[0];
+            char flag = buffer[0];
             int client_sock = cqe_request->client_sock;
             
             // 找到暂存的缓冲区
@@ -215,25 +215,29 @@ void Rocket::Start()
                 wait_queue[client_sock] = std::vector<char *>{buffer};
             } else {
                 iter->second.push_back(buffer);
+                std::sort(iter->second.begin(), iter->second.end(), [=](char *a, char *b){
+                    return (unsigned char)a[0] < (unsigned char)b[0];
+                });
             }
 
             if ((unsigned char)flag != 0xFF) {
                 // 提交一个新的读任务
                 PrepareRead(client_sock);
             } else {
-                unsigned blocks = 1;
+                unsigned blocks = 0;
                 auto iter = wait_queue.find(client_sock);
                 // 如果前面还有项，一起拿出来
                 if (iter != wait_queue.end()) {
                     blocks += iter->second.size();
                 }
                 char *complete_buffer = new char[blocks * (_max_buffer_size - 1)];
+                memset(complete_buffer, 0, blocks * (_max_buffer_size - 1));
                 // 复制内存，并清理结构体中的动态内存
                 // TODO:如果能提前知道长度，就可以一次性申请大内存，就不必复制一遍了
                 unsigned pointer = 0;
                 for (auto i : iter->second) {
                     if (i) {
-                        memcpy(complete_buffer + pointer, i, _max_buffer_size - 1);
+                        memcpy(complete_buffer + pointer, i + 1, _max_buffer_size - 1);
                         delete[]i;
                         pointer += (_max_buffer_size - 1);
                     }
