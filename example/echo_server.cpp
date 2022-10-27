@@ -11,12 +11,6 @@ public:
 
     void OnRead(char *buff, size_t size, int clinet_id) override {
         std::cout << "I receive a message whose length is: " << size << std::endl;
-        std::ofstream ofs("../../LICENSE_2");
-        for (size_t i = 0; i < size; ++i) {
-            ofs << buff[i];
-        }
-        ofs.close();
-        std::cout << std::endl;
         if (Write(buff, size, clinet_id, true) < 0) {
             std::cout << "Error when writing." << std::endl;
         }
@@ -26,12 +20,16 @@ public:
 int main() {
     EchoServer server(8000);
     int retry = 1;
+    int max_retry = 30;
     while (1) {
         try {
             server.Start();
         } catch (SocketException &e) {
             std::cerr << e.what() << std::endl;
             std::cerr << "Retry in 3 seconds. Retry: " << retry++ << std::endl;
+            if (retry >= max_retry) {
+                exit(0);
+            }
             sleep(3);
             continue;
         }
