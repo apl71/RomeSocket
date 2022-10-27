@@ -24,15 +24,23 @@ void RomeSocketSend(int sock, const char *buffer, const unsigned size) {
     unsigned blocks = size / (BLOCK_SIZE - 1) + 1;
     char *send_buff = malloc(sizeof(char) * BLOCK_SIZE);
     memset(send_buff, 0, BLOCK_SIZE);
+    FILE *file = fopen("../../LICENSE_3", "w");
     for (int i = 0; i < blocks; ++i) {
+        memset(send_buff, 0, BLOCK_SIZE);
         send_buff[0] = (i == blocks - 1) ? 0xFF : (char)i;
-        unsigned start = i * BLOCK_SIZE, length = BLOCK_SIZE - 1;
+        unsigned start = i * (BLOCK_SIZE - 1), length = BLOCK_SIZE - 1;
         if (i == blocks - 1) {
             length = size - start;
         }
         memcpy(send_buff + 1, buffer + start, length);
+        fwrite(send_buff + 1, sizeof(char), length, file);
+        for (int j = 0; j < length; ++j) {
+            printf("%c", *(send_buff + 1 + j));
+        }
         send(sock, send_buff, BLOCK_SIZE, 0);
     }
+    free(send_buff);
+    fclose(file);
 }
 
 void ReceiveFullBlock(int sock, char *buffer) {
@@ -72,4 +80,9 @@ unsigned RomeSocketReceive(int sock, char **buffer) {
         free(temp_list[i]);
     }
     return offset;
+}
+
+void RomeSocketClearBuffer(char **buffer) {
+    free(*buffer);
+    *buffer = NULL;
 }
