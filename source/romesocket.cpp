@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include "exception.hpp"
+#include "romesocket_exception.hpp"
 #include <iostream>
 
 Rocket::Rocket(uint16_t port) : _port(port)
