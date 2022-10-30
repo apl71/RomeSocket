@@ -25,7 +25,7 @@ add_library(rocket STATIC ${SOURCES})
 ## 动态库
 add_library(rocket_shared SHARED ${SOURCES})
 ## 客户端
-add_library(rocketc SHARED source/romesocket_client.c)
+add_library(rocketc SHARED source/client.c)
 
 ## 指定动态库名称
 set_target_properties(rocket_shared PROPERTIES OUTPUT_NAME "rocket")
@@ -38,7 +38,7 @@ target_link_libraries(rocket_shared PUBLIC pthread)
 ## 指定公共头文件
 set_target_properties(rocket_shared PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
 set_target_properties(rocket PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
-set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/romesocket_client.h")
+set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h")
 
 install(TARGETS rocket rocket_shared rocketc
 				LIBRARY DESTINATION /usr/local/lib
@@ -71,7 +71,7 @@ target_link_libraries(echo_server PUBLIC uring pthread)
 set (ECHO_CLIENT_TEST_SOURCES
 	example/echo_client.cpp
 	source/thread_pool.cpp
-    source/romesocket_client.c)
+    source/client.c)
 
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
@@ -79,4 +79,4 @@ target_link_libraries(echo_client PUBLIC uring pthread)
 
 ## 客户端
 set (CLIENT_SOURCES
-    source/romesocket_client.c)
+    source/client.c)
