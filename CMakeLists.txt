@@ -42,7 +42,7 @@ set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/romesocket_clien
 
 install(TARGETS rocket rocket_shared rocketc
 				LIBRARY DESTINATION /usr/local/lib
-				PUBLIC_HEADER DESTINATION /usr/local/include)
+				PUBLIC_HEADER DESTINATION /usr/local/include/romesocket)
 # if (UNIX)
 # 	install(TARGETS rocket rocket_shared DESTINATION /usr/lib)
 # elseif (WIN32)
