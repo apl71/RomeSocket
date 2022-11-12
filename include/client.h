@@ -5,13 +5,25 @@
 extern "C" {
 #endif
 
-int RomeSocketConnect(const char *server, const unsigned port);
+struct Connection {
+    int sock;
+    unsigned char *rx;
+    unsigned char *tx;
+};
 
-void RomeSocketSend(int sock, const char *buffer, const unsigned size);
+struct Connection RomeSocketConnect(const char *server, const unsigned port);
+
+void RomeSocketSendAll(int sock, char *send_buff, size_t length);
+
+void RomeSocketSend(struct Connection sock, const char *buffer, const unsigned size);
+
+void RomeSocketSplitAndSend(int sock, const char *buffer, const unsigned size);
 
 unsigned RomeSocketReceive(int sock, char **buffer);
 
 void RomeSocketClearBuffer(char **buffer);
+
+void RomeSocketClose(struct Connection *conn);
 
 #ifdef __cplusplus
 }
