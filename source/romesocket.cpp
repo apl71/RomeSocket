@@ -9,6 +9,10 @@
 Rocket::Rocket(uint16_t port) : _port(port)
 {
     pool = new ThreadPool();
+    if (sodium_init() < 0) {
+        exit(0);
+    }
+    crypto_kx_keypair(server_pk, server_sk);
 }
 
 void Rocket::Initialize(int port)
@@ -163,24 +167,36 @@ void Rocket::Start()
 
     while (1)
     {
+        // 每n个时间片处理一次事务
+        long n = 2000, count = 0;
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
         if (std::unique_lock<std::mutex> lock(_ring_mutex);
-            io_uring_wait_cqe_timeout(&_ring, &cqe, &ts) != 0)
-        {
-            // std::cout << "Timeout, continue." << std::endl;
+            io_uring_wait_cqe_timeout(&_ring, &cqe, &ts) != 0) {
+            // 删除过期的客户
+            if (count++ == n) {
+                count = 0;
+                auto it = clients.begin();
+                while (it != clients.end()) {
+                    if (it->second.last_time + timeout < time(nullptr)) {
+                        close(it->second.connection);
+                        it = clients.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
             continue;
         }
-        if (cqe->res <= 0)
-        {
+
+        if (cqe->res <= 0) {
             std::unique_lock<std::mutex> lock(_ring_mutex);
             io_uring_cqe_seen(&_ring, cqe);
             continue;
         }
         Request *cqe_request = reinterpret_cast<Request *>(cqe->user_data);
-        switch (cqe_request->type)
-        {
+        switch (cqe_request->type) {
         case REQUEST_TYPE_ACCEPT:
             // 接受用户的事件，由于请求队列中的“接受用户”的任务被消耗
             // 这里需要创建一个新的，来保证其他用户能够连接服务器
@@ -201,16 +217,62 @@ void Rocket::Start()
         {
             // 读取到了输入
             char *buffer = new char[_max_buffer_size];
+            int client_sock = cqe_request->client_sock;
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
-            // 支持任意长度传输，每个“包”的首两字节为标志字节，前两位为非00表示后续有块
-            // 11表示最后一个报文 后14位表示该缓冲区中的有效数据长度
+            char hello[8];
+            memcpy(hello, buffer + 3, 8);
+            if (hello[7]== 0x00 && std::string(hello) == "RSHELLO") {
+                std::cout << "get RSHELLO" << std::endl;
+                // 是握手包
+                Client client;
+                client.connection = client_sock;
+                client.last_time = time(nullptr);
+                // 提取用户公钥
+                unsigned char client_pk[crypto_kx_PUBLICKEYBYTES];
+                memcpy(client_pk, buffer + 3 + 8, crypto_kx_PUBLICKEYBYTES);
+                // 生成密钥对
+                if (crypto_kx_server_session_keys(client.rx, client.tx,
+                                        server_pk, server_sk, client_pk) != 0) {
+                    break;
+                } else {
+                    std::cout << "send RSHELLO" << std::endl;
+                    // 发回握手包
+                    char *shake = new char[_max_buffer_size];
+                    memset(shake, 0, _max_buffer_size);
+                    strcpy(shake, "RSHELLO");
+                    memcpy(shake + 8, server_pk, crypto_kx_PUBLICKEYBYTES);
+                    Write(shake, _max_buffer_size, client_sock, true);
+                    clients[client_sock] = client;
+                    std::cout << "Server public key: ";
+                    for (int i = 0; i < crypto_kx_PUBLICKEYBYTES; ++i) {
+                        std::cout << std::hex << (unsigned)server_pk[i];
+                    }
+                    std::cout << std::endl;
+                    std::cout << "Get public key from client: ";
+                    for (int i = 0; i < crypto_kx_PUBLICKEYBYTES; ++i) {
+                        std::cout << std::hex << (unsigned)client_pk[i];
+                    }
+                    std::cout << std::endl;
+                    std::cout << "Finish key exchange." << std::endl;
+                    std::cout << "server rx: ";
+                    for (int i = 0; i < crypto_kx_SESSIONKEYBYTES; ++i) {
+                        std::cout << std::hex << (unsigned)client.rx[i];
+                    }
+                    std::cout << std::dec << std::endl;
+                    // 提交一个新的读任务
+                    PrepareRead(client_sock);
+                    break;
+                }
+            }
+            // 支持任意长度传输，每个“包”的首三字节为标志字节，前第一位表示块顺序
+            // 0xFF表示最后一个报文 两字节表示有效数据长度
             char flag = buffer[0];
             uint16_t length = uint16_t(buffer[1]) << 8 | (uint16_t(buffer[2]) & 0x00FF);
             std::cout << "received packet " << (unsigned)flag << ": length = " << length << std::endl;
             if (length > _max_buffer_size - SERVER_HEADER_LENGTH) {
                 length = _max_buffer_size - SERVER_HEADER_LENGTH;
             }
-            int client_sock = cqe_request->client_sock;
+            
             
             // 找到暂存的缓冲区
             auto iter = wait_queue.find(client_sock);
@@ -239,21 +301,63 @@ void Rocket::Start()
                 for (auto i : iter->second) {
                     total_length += i.length;
                 }
+                // 完整的数据报，未解密
                 char *complete_buffer = new char[total_length];
                 memset(complete_buffer, 0, total_length);
                 // 复制内存，并清理结构体中的动态内存
                 // TODO:如果能提前知道长度，就可以一次性申请大内存，就不必复制一遍了
                 unsigned pointer = 0;
-                for (auto i : iter->second) {
+                for (auto &i : iter->second) {
                     if (i.buffer) {
                         memcpy(complete_buffer + pointer, i.buffer + SERVER_HEADER_LENGTH, i.length);
+                        // std::cout << "Message block: " << std::endl;
+                        // for (unsigned j = 0; j < i.length; ++j) {
+                        //     std::cout << std::hex << (unsigned)((unsigned char *)complete_buffer)[j + pointer];
+                        // }
+                        // std::cout << std::dec << std::endl << std::endl;
                         delete[]i.buffer;
+                        i.buffer = nullptr;
                         pointer += (_max_buffer_size - SERVER_HEADER_LENGTH);
                     }
                 }
+                std::cout << "ciphertext length: " << total_length << std::endl;
                 // 执行读取事件
                 pool->AddTask([=, this](){
-                    OnRead(complete_buffer, total_length, client_sock);
+                    // 解密数据报
+                    // 提取nonce
+                    unsigned char nonce[crypto_secretbox_NONCEBYTES];
+                    memcpy(nonce, complete_buffer, crypto_secretbox_NONCEBYTES);
+                    std::cout << "Get message, nonce: ";
+                    for (unsigned i = 0; i < crypto_secretbox_NONCEBYTES; ++i) {
+                        std::cout << std::hex << (unsigned)nonce[i];
+                    }
+                    std::cout << std::dec << std::endl;
+                    unsigned data_length = total_length - crypto_secretbox_NONCEBYTES - crypto_secretbox_MACBYTES;
+                    char *plaintext = new char[data_length];
+                    auto iter = clients.find(client_sock);
+                    if (iter == clients.end()) {
+                        return;
+                    }
+                    unsigned char *server_rx = iter->second.rx;
+                    std::cout << "complete buffer: ";
+                    for (unsigned i = 0; i < total_length; ++i) {
+                        std::cout << std::hex << (unsigned)((unsigned char *)complete_buffer)[i];
+                    }
+                    std::cout << std::dec << std::endl;
+                    if (crypto_secretbox_open_easy(
+                        (unsigned char *)plaintext,
+                        (unsigned char *)complete_buffer + crypto_secretbox_NONCEBYTES,
+                        total_length - crypto_secretbox_NONCEBYTES,
+                        nonce,
+                        server_rx) == 0) {
+                            // 消息认证通过
+                            std::cout << "MAC check pass." << std::endl;
+                            OnRead(plaintext, data_length, client_sock);
+                    } else {
+                        std::cout << "MAC check fail." << std::endl;
+                    }
+                    // OnRead(complete_buffer, total_length, client_sock);
+                    delete[]plaintext;
                     delete[]complete_buffer;
                 });
             }
