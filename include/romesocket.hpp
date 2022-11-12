@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <map>
+#include <sodium.h>
 
 #define REQUEST_TYPE_ACCEPT 1
 #define REQUEST_TYPE_READ 2
@@ -15,20 +16,28 @@
 
 constexpr unsigned SERVER_HEADER_LENGTH = 3;
 
-struct Request
-{
+struct Request {
     int type;
     int client_sock;
     char *buff;
 };
 
-class Rocket
-{
+struct Client {
+    int connection;
+    time_t last_time;
+    unsigned char tx[crypto_kx_SESSIONKEYBYTES];
+    unsigned char rx[crypto_kx_SESSIONKEYBYTES];
+};
+
+class Rocket {
 private:
     int _sock = -1;
     uint16_t _port;
     // 缓冲区的最大长度
     size_t _max_buffer_size = 8192;
+
+    // socket超时时间，在该时间内没有任何通信的客户将断开连接
+    time_t timeout = 30;
 
     // io uring
     io_uring _ring;
@@ -48,6 +57,13 @@ private:
     };
     // int -> client_id
     std::map<int, std::vector<Buffer>> wait_queue;
+
+    // 保存连接信息
+    // int -> client_id
+    std::map<int, Client> clients;
+    // 服务器密钥对
+    unsigned char server_pk[crypto_kx_PUBLICKEYBYTES];
+    unsigned char server_sk[crypto_kx_SECRETKEYBYTES];
 
     // 初始化套接字
     void Initialize(int port);
