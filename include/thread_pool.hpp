@@ -11,8 +11,7 @@
 #include <atomic>
 #include <memory>
 
-class ThreadPool
-{
+class ThreadPool {
 private:
     size_t min_thread_cnt, max_thread_cnt;
     std::vector<std::thread> threads;
