@@ -8,7 +8,7 @@ set(CMAKE_CXX_COMPILER "g++")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
-SET(CMAKE_BUILD_TYPE "Release")
+SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -DNDEBUG")
 SET(CMAKE_C_FLAGS_DEBUG "$ENV{CFLAGS} -O0 -Wall -g2 -ggdb")
@@ -18,6 +18,7 @@ include_directories(include)
 
 set (SOURCES
 	source/thread_pool.cpp
+    source/memory_pool.cpp
 	source/romesocket.cpp)
 
 ## 静态库
@@ -66,7 +67,7 @@ set (ECHO_TEST_SOURCES
 	source/thread_pool.cpp)
 
 add_executable(echo_server ${ECHO_TEST_SOURCES})
-target_link_libraries(echo_server PUBLIC uring pthread)
+target_link_libraries(echo_server PUBLIC uring pthread sodium)
 
 set (ECHO_CLIENT_TEST_SOURCES
 	example/echo_client.cpp
@@ -75,7 +76,11 @@ set (ECHO_CLIENT_TEST_SOURCES
 
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
-target_link_libraries(echo_client PUBLIC uring pthread)
+target_link_libraries(echo_client PUBLIC uring pthread sodium)
+
+## key exchange测试
+add_executable(key_exchange example/key_exchange.c)
+target_link_libraries(key_exchange PUBLIC sodium)
 
 ## 客户端
 set (CLIENT_SOURCES
