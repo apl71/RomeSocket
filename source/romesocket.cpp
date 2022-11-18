@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include "exception.hpp"
 #include <iostream>
+#include "layer.h"
 
 Rocket::Rocket(uint16_t port) : _port(port)
 {
@@ -15,12 +16,11 @@ Rocket::Rocket(uint16_t port) : _port(port)
     crypto_kx_keypair(server_pk, server_sk);
 }
 
-void Rocket::Initialize(int port)
-{
+void Rocket::Initialize(int port) {
     // 初始化套接字
     _sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (_sock == -1)
-    {
+    if (_sock == -1) {
+        std::cout << "Initialize: Fail to create socket." << std::endl;
         return;
     }
     sockaddr_in addr;
@@ -28,26 +28,26 @@ void Rocket::Initialize(int port)
     ((sockaddr_in *)&addr)->sin_family = AF_INET;
     ((sockaddr_in *)&addr)->sin_port = htons(port);
     ((sockaddr_in *)&addr)->sin_addr.s_addr = htonl(INADDR_ANY);
-    if (bind(_sock, (sockaddr *)&addr, sizeof(sockaddr_in)) == -1)
-    {
+    if (bind(_sock, (sockaddr *)&addr, sizeof(sockaddr_in)) == -1) {
         close(_sock);
         _sock = -1;
+        std::cout << "Initialize: Fail to bind port." << std::endl;
         return;
     }
 
-    if (listen(_sock, _max_connection) == -1)
-    {
+    if (listen(_sock, _max_connection) == -1) {
         close(_sock);
         _sock = -1;
+        std::cout << "Initialize: Fail to listen to port." << std::endl;
         return;
     }
 
     // 初始化uring
     int result = io_uring_queue_init(_ring_size, &_ring, 0);
-    if (result != 0)
-    {
+    if (result != 0) {
         close(_sock);
         _sock = -1;
+        std::cout << "Initialize: Fail to initialize io_uring." << result << std::endl;
         return;
     }
 }
@@ -267,22 +267,16 @@ void Rocket::Start()
             // 支持任意长度传输，每个“包”的首三字节为标志字节，前第一位表示块顺序
             // 0xFF表示最后一个报文 两字节表示有效数据长度
             char flag = buffer[0];
-            uint16_t length = uint16_t(buffer[1]) << 8 | (uint16_t(buffer[2]) & 0x00FF);
-            std::cout << "received packet " << (unsigned)flag << ": length = " << length << std::endl;
-            if (length > _max_buffer_size - SERVER_HEADER_LENGTH) {
-                length = _max_buffer_size - SERVER_HEADER_LENGTH;
-            }
-            
             
             // 找到暂存的缓冲区
             auto iter = wait_queue.find(client_sock);
             if (iter == wait_queue.end()) {
                 // 新增一个表项
-                wait_queue[client_sock] = std::vector<Buffer>{{buffer, flag, length}};
+                wait_queue[client_sock] = std::vector<Buffer>{{buffer, (unsigned)_max_buffer_size}};
             } else {
-                iter->second.push_back({buffer, flag, length});
+                iter->second.push_back({buffer, (unsigned)_max_buffer_size});
                 std::sort(iter->second.begin(), iter->second.end(), [=](Buffer a, Buffer b){
-                    return (unsigned char)a.flag < (unsigned char)b.flag;
+                    return (unsigned)a.buffer[0] < (unsigned)b.buffer[0];
                 });
             }
 
@@ -290,76 +284,25 @@ void Rocket::Start()
                 // 提交一个新的读任务
                 PrepareRead(client_sock);
             } else {
-                unsigned blocks = 0;
                 auto iter = wait_queue.find(client_sock);
-                // 如果前面还有项，一起拿出来
-                if (iter != wait_queue.end()) {
-                    blocks += iter->second.size();
+                // 消息总块数
+                auto buffer_count = iter->second.size();
+                // 利用RomeSocketConcatenate拼接层接口拼接缓冲区
+                Buffer complete_cipher_buffer = RomeSocketConcatenate(iter->second.data(), buffer_count);
+                // 查询私钥
+                auto client_iter = clients.find(client_sock);
+                if (client_iter == clients.end()) {
+                    return;
                 }
-                // 计算总长度
-                unsigned total_length = 0;
-                for (auto i : iter->second) {
-                    total_length += i.length;
-                }
-                // 完整的数据报，未解密
-                char *complete_buffer = new char[total_length];
-                memset(complete_buffer, 0, total_length);
-                // 复制内存，并清理结构体中的动态内存
-                // TODO:如果能提前知道长度，就可以一次性申请大内存，就不必复制一遍了
-                unsigned pointer = 0;
-                for (auto &i : iter->second) {
-                    if (i.buffer) {
-                        memcpy(complete_buffer + pointer, i.buffer + SERVER_HEADER_LENGTH, i.length);
-                        // std::cout << "Message block: " << std::endl;
-                        // for (unsigned j = 0; j < i.length; ++j) {
-                        //     std::cout << std::hex << (unsigned)((unsigned char *)complete_buffer)[j + pointer];
-                        // }
-                        // std::cout << std::dec << std::endl << std::endl;
-                        delete[]i.buffer;
-                        i.buffer = nullptr;
-                        pointer += (_max_buffer_size - SERVER_HEADER_LENGTH);
-                    }
-                }
-                std::cout << "ciphertext length: " << total_length << std::endl;
+                unsigned char *server_rx = client_iter->second.rx;
+                // 利用RomeSocketDecrypt解密层接口解密
+                Buffer complete_plain_buffer = RomeSocketDecrypt(complete_cipher_buffer, server_rx);
                 // 执行读取事件
                 pool->AddTask([=, this](){
-                    // 解密数据报
-                    // 提取nonce
-                    unsigned char nonce[crypto_secretbox_NONCEBYTES];
-                    memcpy(nonce, complete_buffer, crypto_secretbox_NONCEBYTES);
-                    std::cout << "Get message, nonce: ";
-                    for (unsigned i = 0; i < crypto_secretbox_NONCEBYTES; ++i) {
-                        std::cout << std::hex << (unsigned)nonce[i];
-                    }
-                    std::cout << std::dec << std::endl;
-                    unsigned data_length = total_length - crypto_secretbox_NONCEBYTES - crypto_secretbox_MACBYTES;
-                    char *plaintext = new char[data_length];
-                    auto iter = clients.find(client_sock);
-                    if (iter == clients.end()) {
-                        return;
-                    }
-                    unsigned char *server_rx = iter->second.rx;
-                    std::cout << "complete buffer: ";
-                    for (unsigned i = 0; i < total_length; ++i) {
-                        std::cout << std::hex << (unsigned)((unsigned char *)complete_buffer)[i];
-                    }
-                    std::cout << std::dec << std::endl;
-                    if (crypto_secretbox_open_easy(
-                        (unsigned char *)plaintext,
-                        (unsigned char *)complete_buffer + crypto_secretbox_NONCEBYTES,
-                        total_length - crypto_secretbox_NONCEBYTES,
-                        nonce,
-                        server_rx) == 0) {
-                            // 消息认证通过
-                            std::cout << "MAC check pass." << std::endl;
-                            OnRead(plaintext, data_length, client_sock);
-                    } else {
-                        std::cout << "MAC check fail." << std::endl;
-                    }
-                    // OnRead(complete_buffer, total_length, client_sock);
-                    delete[]plaintext;
-                    delete[]complete_buffer;
+                    OnRead(complete_plain_buffer.buffer, complete_plain_buffer.length, client_sock);
                 });
+                delete[]complete_plain_buffer.buffer;
+                delete[]complete_cipher_buffer.buffer;
             }
             break;
         }
