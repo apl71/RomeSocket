@@ -13,14 +13,6 @@
 
 const unsigned BLOCK_SIZE = 8192;
 
-// debug
-void PrintHex(unsigned char *data, size_t length) {
-    for (size_t i = 0; i < length; ++i) {
-        printf("%x", data[i]);
-    }
-    printf("\n");
-}
-
 struct Connection RomeSocketConnect(const char *server, const unsigned port) {
     if (sodium_init() < 0) {
         printf("Fail to initialize libsodium\n");
