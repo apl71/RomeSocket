@@ -8,6 +8,7 @@
 #include <memory>
 #include <mutex>
 #include <map>
+#include "layer.h"
 #include <sodium.h>
 
 #define REQUEST_TYPE_ACCEPT 1
@@ -41,7 +42,7 @@ private:
 
     // io uring
     io_uring _ring;
-    size_t _ring_size = 512;
+    size_t _ring_size = 64;
     std::mutex _ring_mutex;
 
     int _max_connection = 300;
@@ -50,11 +51,11 @@ private:
     ThreadPool *pool;
 
     // 暂存未完成的io
-    struct Buffer {
-        char *buffer;
-        char flag;
-        uint16_t length;
-    };
+    // struct Buffer {
+    //     char *buffer;
+    //     char flag;
+    //     uint16_t length;
+    // };
     // int -> client_id
     std::map<int, std::vector<Buffer>> wait_queue;
 
