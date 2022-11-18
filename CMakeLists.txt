@@ -9,6 +9,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 
 SET(CMAKE_BUILD_TYPE "Debug")
+#SET(CMAKE_BUILD_TYPE "Release")
 SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g2 -ggdb")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -DNDEBUG")
 SET(CMAKE_C_FLAGS_DEBUG "$ENV{CFLAGS} -O0 -Wall -g2 -ggdb")
@@ -19,13 +20,14 @@ include_directories(include)
 set (SOURCES
 	source/thread_pool.cpp
     source/memory_pool.cpp
-	source/romesocket.cpp)
+	source/romesocket.cpp
+    source/layer.c)
 
 ## 静态库
 add_library(rocket STATIC ${SOURCES})
 ## 动态库
 add_library(rocket_shared SHARED ${SOURCES})
-## 客户端
+## 客户端库
 add_library(rocketc SHARED source/client.c)
 
 ## 指定动态库名称
@@ -64,7 +66,8 @@ target_link_libraries(thread_pool_test_1 PUBLIC pthread)
 set (ECHO_TEST_SOURCES
 	example/echo_server.cpp
 	source/romesocket.cpp
-	source/thread_pool.cpp)
+	source/thread_pool.cpp
+    source/layer.c)
 
 add_executable(echo_server ${ECHO_TEST_SOURCES})
 target_link_libraries(echo_server PUBLIC uring pthread sodium)
@@ -72,7 +75,8 @@ target_link_libraries(echo_server PUBLIC uring pthread sodium)
 set (ECHO_CLIENT_TEST_SOURCES
 	example/echo_client.cpp
 	source/thread_pool.cpp
-    source/client.c)
+    source/client.c
+    source/layer.c)
 
 add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
