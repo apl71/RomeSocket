@@ -6,6 +6,7 @@
 #include "exception.hpp"
 #include <iostream>
 #include "layer.h"
+#include "client.h"
 
 Rocket::Rocket(uint16_t port) : _port(port)
 {
@@ -241,7 +242,7 @@ void Rocket::Start()
                     memset(shake, 0, _max_buffer_size);
                     strcpy(shake, "RSHELLO");
                     memcpy(shake + 8, server_pk, crypto_kx_PUBLICKEYBYTES);
-                    Write(shake, _max_buffer_size, client_sock, true);
+                    RomeSocketSendAll(client_sock, shake, _max_buffer_size);
                     clients[client_sock] = client;
                     std::cout << "Server public key: ";
                     for (int i = 0; i < crypto_kx_PUBLICKEYBYTES; ++i) {
