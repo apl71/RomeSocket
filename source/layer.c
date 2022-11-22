@@ -16,8 +16,8 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
             struct Buffer null = {NULL, 0};
             return null;
         }
-        block_length[i] = (unsigned)(buffers[i].buffer[1] << 8) |
-                          (unsigned)(buffers[i].buffer[2]) & 0x00FF;
+        block_length[i] = ((unsigned)(buffers[i].buffer[1] << 8)) |
+                          ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
         total_length += block_length[i];
     }
     // 申请内存
@@ -30,6 +30,7 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
         offset += block_length[i];
     }
     // 返回结果
+    free(block_length);
     struct Buffer result = {complete, total_length};
     return result;
 }
