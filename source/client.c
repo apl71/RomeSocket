@@ -42,15 +42,13 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port) {
     memcpy(hello + 8, client_pk, crypto_kx_PUBLICKEYBYTES);
     RomeSocketSplitAndSend(sock, hello, BLOCK_SIZE - HEADER_LENGTH - 1);
     // 接收握手消息，收到公钥
-    char *shake = NULL;
-    RomeSocketReceive(sock, &shake);
+    char shake[BLOCK_SIZE];
+    RomeSocketReceiveAll(sock, shake);
     memcpy(server_pk, shake + 8, crypto_kx_PUBLICKEYBYTES);
     printf("Client public key: ");
     PrintHex(client_pk, crypto_kx_PUBLICKEYBYTES);
     printf("Get public key from server: ");
     PrintHex(server_pk, crypto_kx_PUBLICKEYBYTES);
-    // 清理接收缓冲区
-    RomeSocketClearBuffer(&shake);
     // 计算密钥
     if (crypto_kx_client_session_keys(client_rx, client_tx,
                                     client_pk, client_sk, server_pk) != 0) {
@@ -114,7 +112,7 @@ void RomeSocketSplitAndSend(int sock, const char *buffer, const unsigned size) {
     free(send_buff);
 }
 
-void ReceiveFullBlock(int sock, char *buffer) {
+void RomeSocketReceiveAll(int sock, char *buffer) {
     size_t got = 0, remain = BLOCK_SIZE;
     while (remain > 0) {
         size_t size = recv(sock, buffer + got, remain, 0);
@@ -123,42 +121,33 @@ void ReceiveFullBlock(int sock, char *buffer) {
     }
 }
 
-// 输入一个值为空的指针作为缓冲区
-// 需要调用RomeSocketClearBuffer回收
-unsigned RomeSocketReceive(int sock, char **buffer) {
-    char *temp_list[256] = {NULL};
-    int   length[256] = {0};
+// 返回的Buffer结构需要手动清理
+struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
+    // 接收全部报文
+    struct Buffer *temp_list = malloc(sizeof (struct Buffer) * max_block);
     unsigned count = 0;
-    unsigned total_length = 0;
-    while (1) {
-        char *temp = malloc(sizeof(char) * BLOCK_SIZE);
-        memset(temp, 0, BLOCK_SIZE);
+    while (count < max_block - 1) {
+        temp_list[count].buffer = malloc(sizeof(char) * BLOCK_SIZE);
         printf("waiting for block %d\n", count);
-        ReceiveFullBlock(sock, temp);
+        RomeSocketReceiveAll(conn.sock, temp_list[count].buffer);
         printf("receive block %d\n", count);
-        temp_list[count] = temp;
-        length[count] = (unsigned)(temp[1] << 8) | ((unsigned)temp[2] & 0x00FF);
-        total_length += length[count++];
-        if ((unsigned char)temp[0] == 0xFF) {
+        temp_list[count].length = BLOCK_SIZE;
+        if ((unsigned char)temp_list[count].buffer[0] == 0xFF) {
             break;
         }
+        count++;
     }
-    // 组装
-    *buffer = malloc(sizeof(char) * total_length);
-    memset(*buffer, 0, total_length);
-    size_t offset = 0;
-    for (int i = 0; i < count; ++i) {
-        memcpy(*buffer + offset, temp_list[i] + HEADER_LENGTH, length[i]);
-        offset += (BLOCK_SIZE - HEADER_LENGTH);
-        // 清除缓存
-        free(temp_list[i]);
+    // 拼接
+    struct Buffer ciphertext = RomeSocketConcatenate(temp_list, count);
+    // 解密
+    struct Buffer plaintext = RomeSocketDecrypt(ciphertext, conn.rx);
+    // 清理缓存
+    free(ciphertext.buffer);
+    for (unsigned i = 0; i < count; ++i) {
+        free(temp_list[i].buffer);
     }
-    return total_length;
-}
-
-void RomeSocketClearBuffer(char **buffer) {
-    free(*buffer);
-    *buffer = NULL;
+    free(temp_list);
+    return plaintext;
 }
 
 void RomeSocketClose(struct Connection *conn) {
