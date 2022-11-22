@@ -1,6 +1,8 @@
 #ifndef ROMESOCKET_CLIENT_H_
 #define ROMESOCKET_CLIENT_H_
 
+#include "layer.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,9 +21,9 @@ void RomeSocketSend(struct Connection sock, const char *buffer, const unsigned s
 
 void RomeSocketSplitAndSend(int sock, const char *buffer, const unsigned size);
 
-unsigned RomeSocketReceive(int sock, char **buffer);
+void RomeSocketReceiveAll(int sock, char *buffer);
 
-void RomeSocketClearBuffer(char **buffer);
+struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block);
 
 void RomeSocketClose(struct Connection *conn);
 

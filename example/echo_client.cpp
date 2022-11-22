@@ -35,13 +35,12 @@ void go(int id)
         // sprintf(send_buff, "Hello, I'm thread %d, request %d", id, i);
         // send(sock, send_buff, BUFFER_SIZE, 0);
         RomeSocketSend(connection, send_buff, (unsigned)size);
-        char *buffer = NULL;
-        unsigned length = RomeSocketReceive(connection.sock, &buffer);
+        struct Buffer buffer = RomeSocketReceive(connection, 256);
         io_mutex.lock();
         // io
-        std::cout << "get message length: " << length << std::endl;
+        std::cout << "get message length: " << buffer.length << std::endl;
         io_mutex.unlock();
-        RomeSocketClearBuffer(&buffer);
+        free(buffer.buffer);
     }
 
     ifs.close();
