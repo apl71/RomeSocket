@@ -21,7 +21,8 @@ set (SOURCES
 	source/thread_pool.cpp
     source/memory_pool.cpp
 	source/romesocket.cpp
-    source/layer.c)
+    source/layer.c
+    source/client.c)
 
 ## 静态库
 add_library(rocket STATIC ${SOURCES})
@@ -67,7 +68,8 @@ set (ECHO_TEST_SOURCES
 	example/echo_server.cpp
 	source/romesocket.cpp
 	source/thread_pool.cpp
-    source/layer.c)
+    source/layer.c
+    source/client.c)
 
 add_executable(echo_server ${ECHO_TEST_SOURCES})
 target_link_libraries(echo_server PUBLIC uring pthread sodium)
