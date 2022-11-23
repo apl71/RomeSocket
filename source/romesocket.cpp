@@ -76,7 +76,6 @@ int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
     request->client_sock = 0;
     request->type = REQUEST_TYPE_ACCEPT;
     io_uring_sqe_set_data(sqe, request);
-    // std::cout << "PrepareAccept" << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -98,7 +97,6 @@ int Rocket::PrepareRead(int client_sock)
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_READ;
     io_uring_sqe_set_data(read_sqe, req);
-    // std::cout << "PrepareRead" << std::endl;
     _ring_mutex.unlock();
     return 1;
 }
@@ -121,8 +119,6 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link
     
     //strcpy(write_buff, to_write);
     io_uring_sqe_set_data(write_sqe, req);
-    //std::cout << "PrepareWrite task: " << size << " bytes." << std::endl;
-    //std::cout << "Ready to write: " << write_buff << std::endl;
     if (link) {
         write_sqe->flags |= IOSQE_IO_LINK;
     }
@@ -156,7 +152,7 @@ void Rocket::Start()
     socklen_t addr_len = sizeof(client_addr);
     if (PrepareAccept(&client_addr, &addr_len) <= 0)
     {
-        // std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
+        std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
         exit(0);
     }
     Submit();
@@ -204,13 +200,13 @@ void Rocket::Start()
             // 总之，sq中应该总有一个任务，来接受用户连接
             if (PrepareAccept(&client_addr, &addr_len) <= 0)
             {
-                // std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
+                std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
                 exit(0);
             }
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
             if (PrepareRead(cqe->res) <= 0)
             {
-                // std::cout << "[Error] Error: fail to prepare read." << std::endl;
+                std::cout << "[Error] Error: fail to prepare read." << std::endl;
                 continue;
             }
             break;
@@ -221,45 +217,27 @@ void Rocket::Start()
             int client_sock = cqe_request->client_sock;
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
             char hello[8];
-            memcpy(hello, buffer + 3, 8);
+            memcpy(hello, buffer, 8);
             if (hello[7]== 0x00 && std::string(hello) == "RSHELLO") {
-                std::cout << "get RSHELLO" << std::endl;
                 // 是握手包
                 Client client;
                 client.connection = client_sock;
                 client.last_time = time(nullptr);
                 // 提取用户公钥
                 unsigned char client_pk[crypto_kx_PUBLICKEYBYTES];
-                memcpy(client_pk, buffer + 3 + 8, crypto_kx_PUBLICKEYBYTES);
+                memcpy(client_pk, buffer + 8, crypto_kx_PUBLICKEYBYTES);
                 // 生成密钥对
                 if (crypto_kx_server_session_keys(client.rx, client.tx,
                                         server_pk, server_sk, client_pk) != 0) {
                     break;
                 } else {
-                    std::cout << "send RSHELLO" << std::endl;
                     // 发回握手包
                     char *shake = new char[_max_buffer_size];
                     memset(shake, 0, _max_buffer_size);
                     strcpy(shake, "RSHELLO");
                     memcpy(shake + 8, server_pk, crypto_kx_PUBLICKEYBYTES);
-                    RomeSocketSendAll(client_sock, shake, _max_buffer_size);
+                    PrepareWrite(client_sock, shake, _max_buffer_size);
                     clients[client_sock] = client;
-                    std::cout << "Server public key: ";
-                    for (int i = 0; i < crypto_kx_PUBLICKEYBYTES; ++i) {
-                        std::cout << std::hex << (unsigned)server_pk[i];
-                    }
-                    std::cout << std::endl;
-                    std::cout << "Get public key from client: ";
-                    for (int i = 0; i < crypto_kx_PUBLICKEYBYTES; ++i) {
-                        std::cout << std::hex << (unsigned)client_pk[i];
-                    }
-                    std::cout << std::endl;
-                    std::cout << "Finish key exchange." << std::endl;
-                    std::cout << "server rx: ";
-                    for (int i = 0; i < crypto_kx_SESSIONKEYBYTES; ++i) {
-                        std::cout << std::hex << (unsigned)client.rx[i];
-                    }
-                    std::cout << std::dec << std::endl;
                     // 提交一个新的读任务
                     PrepareRead(client_sock);
                     break;
@@ -308,7 +286,6 @@ void Rocket::Start()
             break;
         }
         case REQUEST_TYPE_WRITE:
-            // std::cout << "Write: " << cqe_request->buff << " done." << std::endl;
             break;
         }
         Submit();
@@ -330,23 +307,27 @@ Rocket::~Rocket()
 }
 
 int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
-    // 拆分为大小为8191（_max_buffer_size - 1）的块
-    unsigned blocks = size / (_max_buffer_size - SERVER_HEADER_LENGTH) + 1;
-    size_t offset = 0;
-    for (unsigned i = 0; i < blocks; ++i) {
-        char buffer[_max_buffer_size];
-        memset(buffer, 0, _max_buffer_size);
-        buffer[0] = (i == blocks - 1) ? 0xFF : (char)i;
-        unsigned copy_size = (size - offset > _max_buffer_size - SERVER_HEADER_LENGTH) ?
-            (_max_buffer_size - SERVER_HEADER_LENGTH) : (size - offset);
-        buffer[1] = copy_size >> 8;
-        buffer[2] = copy_size;
-        memcpy(buffer + SERVER_HEADER_LENGTH, buff + offset, copy_size);
-        offset += (_max_buffer_size - SERVER_HEADER_LENGTH);
-        if (PrepareWrite(client_id, buffer, _max_buffer_size, i < blocks - 1) <= 0) {
+    // 查找发送密钥
+    auto client_iter = clients.find(client_id);
+    if (client_iter == clients.end()) {
+        return -3;
+    }
+    struct Buffer plaintext = {buff, (unsigned)size};
+    struct Buffer ciphertext = RomeSocketEncrypt(plaintext, client_iter->second.tx);
+    unsigned length = 0;
+    struct Buffer *buffers   = RomeSocketSplit(ciphertext, &length);
+    // 逐块发送
+    for (unsigned i = 0; i < length; ++i) {
+        if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length, i < length - 1) <= 0) {
             return -2;
         }
     }
+    // 清理资源
+    free(ciphertext.buffer);
+    for (unsigned i = 0; i < length; ++i) {
+        free(buffers[i].buffer);
+    }
+    free(buffers);
     
     if (more) {
         if (PrepareRead(client_id) <= 0) {
