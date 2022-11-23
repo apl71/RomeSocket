@@ -162,6 +162,9 @@ void Rocket::Start()
         .tv_nsec = 1L
     };
 
+    // 开始服务
+    OnStart();
+
     while (1)
     {
         // 每n个时间片处理一次事务

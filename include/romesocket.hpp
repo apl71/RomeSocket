@@ -84,6 +84,9 @@ public:
     Rocket(uint16_t port);
     ~Rocket();
 
+    // 启动事件
+    virtual void OnStart() = 0;
+
     // 启动服务器
     void Start();
 

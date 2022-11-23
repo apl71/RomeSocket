@@ -8,6 +8,10 @@ class EchoServer : public Rocket {
 public:
     using Rocket::Rocket;
 
+    void OnStart() {
+        std::cout << "Server start." << std::endl;
+    }
+
     void OnRead(char *buff, size_t size, int clinet_id) override {
         std::cout << "I receive a message whose length is: " << size << std::endl;
         if (Write(buff, size, clinet_id, true) < 0) {
