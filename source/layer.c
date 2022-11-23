@@ -11,7 +11,7 @@ void PrintHex(unsigned char *data, size_t length) {
 struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     unsigned total_length = 0; // 有效数据的总长度
     unsigned *block_length = (unsigned *)malloc(sizeof(unsigned) * count); // 暂存块长度
-    for (int i = 0; i < count; ++i) {
+    for (unsigned  i = 0; i < count; ++i) {
         if (buffers[i].length < 3) {
             struct Buffer null = {NULL, 0};
             return null;
@@ -49,8 +49,6 @@ struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
     // 提取nonce
     unsigned char nonce[crypto_secretbox_NONCEBYTES];
     memcpy(nonce, buffer.buffer, crypto_secretbox_NONCEBYTES);
-    printf("nonce: ");
-    PrintHex(nonce, crypto_secretbox_NONCEBYTES);
     // 解密进入明文
     char *plaintext = (char *)malloc(buffer.length - crypto_secretbox_NONCEBYTES);
     if (crypto_secretbox_open_easy(
@@ -59,11 +57,61 @@ struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
             buffer.length - crypto_secretbox_NONCEBYTES,
             nonce,
             rx) == 0) {
-        struct Buffer result = {plaintext, buffer.length - crypto_secretbox_NONCEBYTES};
+        struct Buffer result = {plaintext, buffer.length - crypto_secretbox_NONCEBYTES - crypto_secretbox_MACBYTES};
         return result;
     } else {
         // MAC认证失败
         struct Buffer null = {NULL, 0};
         return null;
     }
+}
+
+struct Buffer RomeSocketEncrypt(struct Buffer buffer, unsigned char *tx) {
+    struct Buffer ciphertext;
+    // 开辟密文和nonce所需的内存空间
+    ciphertext.length = crypto_secretbox_NONCEBYTES + buffer.length + crypto_secretbox_MACBYTES;
+    ciphertext.buffer = malloc(ciphertext.length);
+    // 生成nonce
+    randombytes_buf(ciphertext.buffer, crypto_secretbox_NONCEBYTES);
+    // 加密
+    crypto_secretbox_easy(
+        (unsigned char *)ciphertext.buffer + crypto_secretbox_NONCEBYTES,
+        (unsigned char *)buffer.buffer,
+        buffer.length,
+        (unsigned char *)ciphertext.buffer,
+        tx);
+    return ciphertext;
+}
+
+struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length) {
+    // 计算需要的总块数
+    unsigned block_num = full_block.length / (BLOCK_LENGTH - HEADER_LENGTH);
+    if (full_block.length % (BLOCK_LENGTH - HEADER_LENGTH) != 0) {
+        ++block_num;
+    }
+    // 生成分块
+    struct Buffer *buffers = malloc(sizeof(struct Buffer) * block_num);
+    unsigned current = 0, remain = full_block.length;
+    for (unsigned i = 0; i < block_num; ++i) {
+        // 计算块大小
+        unsigned current_length = BLOCK_LENGTH - HEADER_LENGTH;
+        if (remain < BLOCK_LENGTH - HEADER_LENGTH) {
+            current_length = remain;
+        }
+        buffers[i].buffer = malloc(BLOCK_LENGTH);
+        memcpy(buffers[i].buffer + HEADER_LENGTH, full_block.buffer + current, current_length);
+        current += current_length, remain -= current_length;
+        // 写入文件头
+        if (i == block_num - 1) {
+            buffers[i].buffer[0] = 0xFF;
+        } else {
+            buffers[i].buffer[0] = i;
+        }
+        buffers[i].buffer[1] = current_length >> 8;
+        buffers[i].buffer[2] = current_length;
+        buffers[i].length = BLOCK_LENGTH;
+    }
+    // 返回数据
+    *length = block_num;
+    return buffers;
 }
