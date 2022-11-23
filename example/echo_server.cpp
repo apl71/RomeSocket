@@ -10,7 +10,6 @@ public:
 
     void OnRead(char *buff, size_t size, int clinet_id) override {
         std::cout << "I receive a message whose length is: " << size << std::endl;
-        std::cout << buff << std::endl;
         if (Write(buff, size, clinet_id, true) < 0) {
             std::cout << "Error when writing." << std::endl;
         }
