@@ -140,8 +140,7 @@ void Rocket::FreeRequest(Request **request)
     }
 }
 
-void Rocket::Start()
-{
+void Rocket::Start() {
     Initialize(_port);
     if (_sock == -1)
     {
@@ -201,20 +200,17 @@ void Rocket::Start()
             // 接受用户的事件，由于请求队列中的“接受用户”的任务被消耗
             // 这里需要创建一个新的，来保证其他用户能够连接服务器
             // 总之，sq中应该总有一个任务，来接受用户连接
-            if (PrepareAccept(&client_addr, &addr_len) <= 0)
-            {
+            if (PrepareAccept(&client_addr, &addr_len) <= 0) {
                 std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
                 exit(0);
             }
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
-            if (PrepareRead(cqe->res) <= 0)
-            {
+            if (PrepareRead(cqe->res) <= 0) {
                 std::cout << "[Error] Error: fail to prepare read." << std::endl;
                 continue;
             }
             break;
-        case REQUEST_TYPE_READ:
-        {
+        case REQUEST_TYPE_READ: {
             // 读取到了输入
             char *buffer = new char[_max_buffer_size];
             int client_sock = cqe_request->client_sock;
@@ -243,6 +239,11 @@ void Rocket::Start()
                     clients[client_sock] = client;
                     // 提交一个新的读任务
                     PrepareRead(client_sock);
+                    // debug
+                    // printf("server tx: ");
+                    // PrintHex(client.tx, crypto_kx_SESSIONKEYBYTES);
+                    // printf("server rx: ");
+                    // PrintHex(client.rx, crypto_kx_SESSIONKEYBYTES);
                     break;
                 }
             }
@@ -269,6 +270,12 @@ void Rocket::Start()
                 auto iter = wait_queue.find(client_sock);
                 // 消息总块数
                 auto buffer_count = iter->second.size();
+                // 打印消息分块情况
+                // for (auto buffer__ : iter->second) {
+                //     unsigned length__ = ((unsigned)(buffer__.buffer[1] << 8)) |
+                //           ((unsigned)(buffer__.buffer[2]) & 0x00FF);
+                //     PrintHex((unsigned char *)buffer__.buffer, length__);
+                // }
                 // 利用RomeSocketConcatenate拼接层接口拼接缓冲区
                 Buffer complete_cipher_buffer = RomeSocketConcatenate(iter->second.data(), buffer_count);
                 // 查询私钥
@@ -279,12 +286,20 @@ void Rocket::Start()
                 unsigned char *server_rx = client_iter->second.rx;
                 // 利用RomeSocketDecrypt解密层接口解密
                 Buffer complete_plain_buffer = RomeSocketDecrypt(complete_cipher_buffer, server_rx);
+                // printf("message: ");
+                // PrintHex((unsigned char *)complete_plain_buffer.buffer, complete_plain_buffer.length);
+                // printf("\n");
                 // 执行读取事件
                 pool->AddTask([=, this](){
                     OnRead(complete_plain_buffer.buffer, complete_plain_buffer.length, client_sock);
+                    delete[]complete_plain_buffer.buffer;
+                    delete[]complete_cipher_buffer.buffer;
                 });
-                delete[]complete_plain_buffer.buffer;
-                delete[]complete_cipher_buffer.buffer;
+                // 清除缓存的消息块
+                for (auto &i : iter->second) {
+                    delete[]i.buffer;
+                }
+                iter->second.clear();
             }
             break;
         }
@@ -299,8 +314,7 @@ void Rocket::Start()
     }
 }
 
-Rocket::~Rocket()
-{
+Rocket::~Rocket() {
     io_uring_queue_exit(&_ring);
     if (_sock != -1)
     {
@@ -316,6 +330,9 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         return -3;
     }
     struct Buffer plaintext = {buff, (unsigned)size};
+    // printf("ready to send plaintext length %u:\n", plaintext.length);
+    // PrintHex((unsigned char *)plaintext.buffer, plaintext.length);
+    // printf("\n");
     struct Buffer ciphertext = RomeSocketEncrypt(plaintext, client_iter->second.tx);
     unsigned length = 0;
     struct Buffer *buffers   = RomeSocketSplit(ciphertext, &length);
