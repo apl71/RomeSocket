@@ -46,8 +46,7 @@ int Compare(Buffer a, Buffer b) {
     return -1;
 }
 
-void go(int id)
-{
+void go(int id) {
     Connection connection = RomeSocketConnect(SERVER, PORT);
     // printf("client tx: ");
     // PrintHex(connection.tx, crypto_kx_SESSIONKEYBYTES);
@@ -56,8 +55,7 @@ void go(int id)
 
     // 测试数量
     unsigned test_cases = 100;
-    for (unsigned i = 0; i < test_cases; ++i)
-    {
+    for (unsigned i = 0; i < test_cases; ++i) {
         // 生成随机数据
         Buffer data = RandomBytes();
         RomeSocketSend(connection, data);
