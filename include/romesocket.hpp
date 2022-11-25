@@ -35,14 +35,14 @@ private:
     int _sock = -1;
     uint16_t _port;
     // 缓冲区的最大长度
-    size_t _max_buffer_size = 8192;
+    size_t _max_buffer_size = BLOCK_LENGTH;
 
     // socket超时时间，在该时间内没有任何通信的客户将断开连接
     time_t timeout = 30;
 
     // io uring
     io_uring _ring;
-    size_t _ring_size = 64;
+    size_t _ring_size = 32;
     std::mutex _ring_mutex;
 
     int _max_connection = 300;
