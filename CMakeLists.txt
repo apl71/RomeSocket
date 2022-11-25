@@ -91,3 +91,10 @@ target_link_libraries(key_exchange PUBLIC sodium)
 ## 客户端
 set (CLIENT_SOURCES
     source/client.c)
+
+## 测试
+set(LAYER_TEST_SOURCES
+    source/layer.c
+    test/layer_test.cpp)
+add_executable(layer_test ${LAYER_TEST_SOURCES})
+target_link_libraries(layer_test PUBLIC sodium gtest gtest_main pthread)
