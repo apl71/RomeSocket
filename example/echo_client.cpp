@@ -25,7 +25,7 @@ Buffer RandomBytes(unsigned length = 0) {
     sodium_init();
     // 随机数
     while (length == 0) {
-        length = randombytes_uniform(1024 * 10);
+        length = randombytes_uniform(1024);
     }
     char *data = new char[length];
     randombytes_buf(data, length);
@@ -49,26 +49,37 @@ int Compare(Buffer a, Buffer b) {
 void go(int id)
 {
     Connection connection = RomeSocketConnect(SERVER, PORT);
+    // printf("client tx: ");
+    // PrintHex(connection.tx, crypto_kx_SESSIONKEYBYTES);
+    // printf("client rx: ");
+    // PrintHex(connection.rx, crypto_kx_SESSIONKEYBYTES);
+
     // 测试数量
-    unsigned test_cases = 2;
+    unsigned test_cases = 100;
     for (unsigned i = 0; i < test_cases; ++i)
     {
         // 生成随机数据
         Buffer data = RandomBytes();
         RomeSocketSend(connection, data);
         Buffer buffer = RomeSocketReceive(connection, 256);
+        if (!buffer.buffer) {
+            std::cout << red << "[FAIL] " << reset
+                      << std::dec << "Test case " << i << " fail: "
+                      << "buffer is null pointer." << std::endl;
+            continue;
+        }
         int result = Compare(data, buffer);
         io_mutex.lock();
         // io
         if (result != -1) {
-            std::cout << red << "[FAIL]" << reset
+            std::cout << red << "[FAIL] " << reset
                       << std::dec << "Test case " << i << " fail: "
                       << "Inconstant first occur at " << result << std::endl;
             std::cout << "length: " << data.length << " and " << buffer.length << std::endl;
-            // PrintHex((unsigned char *)data.buffer, data.length);
-            // PrintHex((unsigned char *)buffer.buffer, buffer.length);
+            PrintHex((unsigned char *)data.buffer, data.length);
+            PrintHex((unsigned char *)buffer.buffer, buffer.length);
         } else {
-            std::cout << green << "[PASS]" << reset << std::dec << "Test case " << i << " pass" << std::endl;
+            std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass" << std::endl;
         }
         io_mutex.unlock();
         delete[]buffer.buffer;

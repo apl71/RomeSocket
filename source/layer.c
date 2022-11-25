@@ -32,6 +32,9 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     // 返回结果
     free(block_length);
     struct Buffer result = {complete, total_length};
+    // debug
+    // printf("After concatenating: \n");
+    // PrintHex(result.buffer, result.length);
     return result;
 }
 
@@ -58,6 +61,13 @@ struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
             nonce,
             rx) == 0) {
         struct Buffer result = {plaintext, buffer.length - crypto_secretbox_NONCEBYTES - crypto_secretbox_MACBYTES};
+        // printf("decrypting buffer length %u:\n", buffer.length);
+        // PrintHex(buffer.buffer, buffer.length);
+        // printf("After decryption: using rx = \n");
+        // PrintHex(rx, crypto_kx_SESSIONKEYBYTES);
+        // printf("nonce = ");
+        // PrintHex(nonce, crypto_secretbox_NONCEBYTES);
+        // PrintHex(result.buffer, result.length);
         return result;
     } else {
         // MAC认证失败
@@ -80,6 +90,13 @@ struct Buffer RomeSocketEncrypt(struct Buffer buffer, unsigned char *tx) {
         buffer.length,
         (unsigned char *)ciphertext.buffer,
         tx);
+    // printf("encrypting buffer length %u:\n", buffer.length);
+    // PrintHex(buffer.buffer, buffer.length);
+    // printf("After encryption: using tx = \n");
+    // PrintHex(tx, crypto_kx_SESSIONKEYBYTES);
+    // printf("nonce = ");
+    // PrintHex(ciphertext.buffer, crypto_secretbox_NONCEBYTES);
+    // PrintHex(ciphertext.buffer, ciphertext.length);
     return ciphertext;
 }
 
@@ -113,5 +130,15 @@ struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length) {
     }
     // 返回数据
     *length = block_num;
+    // printf("After spliting: \n");
+    // for (unsigned i = 0; i < *length; ++i) {
+    //     PrintHex(buffers[i].buffer, buffers[i].length);
+    // }
     return buffers;
+}
+
+void RomeSocketClearBuffer(struct Buffer buffer) {
+    if (buffer.buffer) {
+        free(buffer.buffer);
+    }
 }
