@@ -45,6 +45,9 @@ private:
     size_t _ring_size = 32;
     std::mutex _ring_mutex;
 
+    //debug
+    long long submited = 0;
+
     int _max_connection = 300;
 
     // 工作线程池

@@ -53,20 +53,18 @@ void Rocket::Initialize(int port) {
     }
 }
 
-void Rocket::Submit()
-{
+void Rocket::Submit() {
     _ring_mutex.lock();
-    io_uring_submit(&_ring);
+    submited += io_uring_submit(&_ring);
     _ring_mutex.unlock();
 }
 
-int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
-{
+int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len) {
     // 获取sqe
     _ring_mutex.lock();
     struct io_uring_sqe *sqe = io_uring_get_sqe(&_ring);
-    if (sqe == nullptr)
-    {
+    if (sqe == nullptr) {
+        _ring_mutex.unlock();
         return -1;
     }
     io_uring_prep_accept(sqe, _sock, client_addr, addr_len, 0);
@@ -80,12 +78,11 @@ int Rocket::PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len)
     return 1;
 }
 
-int Rocket::PrepareRead(int client_sock)
-{
+int Rocket::PrepareRead(int client_sock) {
     _ring_mutex.lock();
     struct io_uring_sqe *read_sqe = io_uring_get_sqe(&_ring);
-    if (read_sqe == nullptr)
-    {
+    if (read_sqe == nullptr) {
+        _ring_mutex.unlock();
         return -1;
     }
     char *read_buff = new char[_max_buffer_size];
@@ -101,8 +98,7 @@ int Rocket::PrepareRead(int client_sock)
     return 1;
 }
 
-int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link)
-{
+int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link) {
     char *write_buff = new char[_max_buffer_size];
     memcpy(write_buff, to_write, size);
     Request *req = new Request;
@@ -111,13 +107,11 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link
     req->type = REQUEST_TYPE_WRITE;
     _ring_mutex.lock();
     io_uring_sqe *write_sqe = io_uring_get_sqe(&_ring);
-    if (write_sqe == nullptr)
-    {
+    if (write_sqe == nullptr) {
+        _ring_mutex.unlock();
         return -1;
     }
     io_uring_prep_write(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
-    
-    //strcpy(write_buff, to_write);
     io_uring_sqe_set_data(write_sqe, req);
     if (link) {
         write_sqe->flags |= IOSQE_IO_LINK;
@@ -126,12 +120,9 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size, bool link
     return 1;
 }
 
-void Rocket::FreeRequest(Request **request)
-{
-    if (*request)
-    {
-        if ((*request)->buff)
-        {
+void Rocket::FreeRequest(Request **request) {
+    if (*request) {
+        if ((*request)->buff) {
             delete (*request)->buff;
             (*request)->buff = NULL;
         }
@@ -142,30 +133,29 @@ void Rocket::FreeRequest(Request **request)
 
 void Rocket::Start() {
     Initialize(_port);
-    if (_sock == -1)
-    {
+    if (_sock == -1) {
         throw SocketException();
     }
 
     sockaddr client_addr;
     socklen_t addr_len = sizeof(client_addr);
-    if (PrepareAccept(&client_addr, &addr_len) <= 0)
-    {
+    if (PrepareAccept(&client_addr, &addr_len) <= 0) {
         std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
         exit(0);
+    } else {
+        std::cout << "Prepare accept for initial" << std::endl;
     }
     Submit();
 
     __kernel_timespec ts = {
         .tv_sec = 0L,
-        .tv_nsec = 1L
+        .tv_nsec = 100L
     };
 
     // 开始服务
     OnStart();
 
-    while (1)
-    {
+    while (1) {
         // 每n个时间片处理一次事务
         long n = 2000, count = 0;
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
@@ -178,9 +168,11 @@ void Rocket::Start() {
                 count = 0;
                 auto it = clients.begin();
                 while (it != clients.end()) {
+                    std::cout << "check" << std::endl;
                     if (it->second.last_time + timeout < time(nullptr)) {
                         close(it->second.connection);
                         it = clients.erase(it);
+                        std::cout << "erase one item" << std::endl;
                     } else {
                         ++it;
                     }
@@ -192,6 +184,7 @@ void Rocket::Start() {
         if (cqe->res <= 0) {
             std::unique_lock<std::mutex> lock(_ring_mutex);
             io_uring_cqe_seen(&_ring, cqe);
+            submited--;
             continue;
         }
         Request *cqe_request = reinterpret_cast<Request *>(cqe->user_data);
@@ -203,11 +196,15 @@ void Rocket::Start() {
             if (PrepareAccept(&client_addr, &addr_len) <= 0) {
                 std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
                 exit(0);
+            } else {
+                std::cout << "Prepare accept for next user" << std::endl;
             }
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
             if (PrepareRead(cqe->res) <= 0) {
                 std::cout << "[Error] Error: fail to prepare read." << std::endl;
                 continue;
+            } else {
+                std::cout << "Prepare read for current user" << std::endl;
             }
             break;
         case REQUEST_TYPE_READ: {
@@ -235,10 +232,16 @@ void Rocket::Start() {
                     memset(shake, 0, _max_buffer_size);
                     strcpy(shake, "RSHELLO");
                     memcpy(shake + 8, server_pk, crypto_kx_PUBLICKEYBYTES);
-                    PrepareWrite(client_sock, shake, _max_buffer_size);
+                    if (PrepareWrite(client_sock, shake, _max_buffer_size) <= 0) {
+                        std::cout << "Fail to prepare write task." << std::endl;
+                    }
+                    std::cout << "Prepare write for shake" << std::endl;
                     clients[client_sock] = client;
                     // 提交一个新的读任务
-                    PrepareRead(client_sock);
+                    if (PrepareRead(client_sock) <= 0) {
+                        std::cout << "Fail to prepare read task." << std::endl;
+                    }
+                    std::cout << "Prepare read for hand shaked user" << std::endl;
                     // debug
                     // printf("server tx: ");
                     // PrintHex(client.tx, crypto_kx_SESSIONKEYBYTES);
@@ -265,7 +268,10 @@ void Rocket::Start() {
 
             if ((unsigned char)flag != 0xFF) {
                 // 提交一个新的读任务
-                PrepareRead(client_sock);
+                if (PrepareRead(client_sock) <= 0) {
+                    std::cout << "Fail to prepare read task." << std::endl;
+                }
+                std::cout << "Prepare read for non-last message" << std::endl;
             } else {
                 auto iter = wait_queue.find(client_sock);
                 // 消息总块数
@@ -309,15 +315,16 @@ void Rocket::Start() {
         Submit();
         _ring_mutex.lock();
         io_uring_cqe_seen(&_ring, cqe);
+        submited--;
         FreeRequest(&cqe_request);
+        std::cout << "submited: " << submited << std::endl;
         _ring_mutex.unlock();
     }
 }
 
 Rocket::~Rocket() {
     io_uring_queue_exit(&_ring);
-    if (_sock != -1)
-    {
+    if (_sock != -1) {
         close(_sock);
     }
     delete pool;
@@ -327,6 +334,7 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     // 查找发送密钥
     auto client_iter = clients.find(client_id);
     if (client_iter == clients.end()) {
+        std::cout << "Fail to get user info" << std::endl;
         return -3;
     }
     struct Buffer plaintext = {buff, (unsigned)size};
@@ -339,7 +347,10 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     // 逐块发送
     for (unsigned i = 0; i < length; ++i) {
         if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length, i < length - 1) <= 0) {
+            std::cout << "Fail to prepare write" << std::endl;
             return -2;
+        } else {
+            std::cout << "Prepare write for block message" << std::endl;
         }
     }
     // 清理资源
@@ -351,7 +362,10 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     
     if (more) {
         if (PrepareRead(client_id) <= 0) {
+            std::cout << "Fail to prepare read more" << std::endl;
             return -2;
+        } else {
+            std::cout << "Prepare read for more message" << std::endl;
         }
     }
     Submit();
