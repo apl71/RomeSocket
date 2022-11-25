@@ -16,11 +16,6 @@ struct Buffer {
 
 void PrintHex(unsigned char *data, size_t length);
 
-// 接收消息
-// struct Buffer RomeSocketRead() {
-
-// }
-
 // 定义头部长度
 #define HEADER_LENGTH 3
 #define BLOCK_LENGTH 8192
@@ -45,6 +40,8 @@ struct Buffer RomeSocketEncrypt(struct Buffer buffer, unsigned char *tx);
 // 将完整的full_block按照块大小分割为多个块
 // 返回一系列buffer，需要调用者清理
 struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length);
+
+void RomeSocketClearBuffer(struct Buffer buffer);
 
 #ifdef __cplusplus
 }
