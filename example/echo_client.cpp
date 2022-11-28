@@ -25,7 +25,7 @@ Buffer RandomBytes(unsigned length = 0) {
     sodium_init();
     // 随机数
     while (length == 0) {
-        length = randombytes_uniform(1024);
+        length = randombytes_uniform(1024 * 16);
     }
     char *data = new char[length];
     randombytes_buf(data, length);
@@ -87,10 +87,8 @@ void go(int id) {
     RomeSocketClose(&connection);
 }
 
-int main()
-{
-    go(1);
-    // ThreadPool pool;
-    // for (int i = 0; i < 4; ++i)
-    //     pool.AddTask(go, i);
+int main() {
+    ThreadPool pool(4, 4);
+    for (int i = 0; i < 4; ++i)
+        pool.AddTask(go, i);
 }
