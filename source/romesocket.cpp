@@ -55,7 +55,7 @@ void Rocket::Initialize(int port) {
 
 void Rocket::Submit() {
     _ring_mutex.lock();
-    submited += io_uring_submit(&_ring);
+    io_uring_submit(&_ring);
     _ring_mutex.unlock();
 }
 
@@ -161,8 +161,7 @@ void Rocket::Start() {
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
-        if (std::unique_lock<std::mutex> lock(_ring_mutex);
-            io_uring_wait_cqe_timeout(&_ring, &cqe, &ts) != 0) {
+        if (io_uring_wait_cqe(&_ring, &cqe) != 0) {
             // 删除过期的客户
             if (count++ == n) {
                 count = 0;
@@ -202,7 +201,7 @@ void Rocket::Start() {
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
             if (PrepareRead(cqe->res) <= 0) {
                 std::cout << "[Error] Error: fail to prepare read." << std::endl;
-                continue;
+                break;
             } else {
                 std::cout << "Prepare read for current user" << std::endl;
             }
@@ -315,9 +314,7 @@ void Rocket::Start() {
         Submit();
         _ring_mutex.lock();
         io_uring_cqe_seen(&_ring, cqe);
-        submited--;
         FreeRequest(&cqe_request);
-        std::cout << "submited: " << submited << std::endl;
         _ring_mutex.unlock();
     }
 }
