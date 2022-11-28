@@ -45,21 +45,12 @@ private:
     size_t _ring_size = 32;
     std::mutex _ring_mutex;
 
-    //debug
-    long long submited = 0;
-
     int _max_connection = 300;
 
     // 工作线程池
     ThreadPool *pool;
 
     // 暂存未完成的io
-    // struct Buffer {
-    //     char *buffer;
-    //     char flag;
-    //     uint16_t length;
-    // };
-    // int -> client_id
     std::map<int, std::vector<Buffer>> wait_queue;
 
     // 保存连接信息
