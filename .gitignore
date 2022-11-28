@@ -37,6 +37,6 @@ build/release/*
 !build/debug/.gitkeep
 !build/release/.gitkeep
 
-.vs/*
+.vscode/*
 
 *.json
