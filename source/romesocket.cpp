@@ -142,15 +142,8 @@ void Rocket::Start() {
     if (PrepareAccept(&client_addr, &addr_len) <= 0) {
         std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
         exit(0);
-    } else {
-        std::cout << "Prepare accept for initial" << std::endl;
     }
     Submit();
-
-    __kernel_timespec ts = {
-        .tv_sec = 0L,
-        .tv_nsec = 100L
-    };
 
     // 开始服务
     OnStart();
@@ -167,11 +160,9 @@ void Rocket::Start() {
                 count = 0;
                 auto it = clients.begin();
                 while (it != clients.end()) {
-                    std::cout << "check" << std::endl;
                     if (it->second.last_time + timeout < time(nullptr)) {
                         close(it->second.connection);
                         it = clients.erase(it);
-                        std::cout << "erase one item" << std::endl;
                     } else {
                         ++it;
                     }
@@ -195,15 +186,11 @@ void Rocket::Start() {
             if (PrepareAccept(&client_addr, &addr_len) <= 0) {
                 std::cout << "[Error] Fatal error: fail to prepare accept." << std::endl;
                 exit(0);
-            } else {
-                std::cout << "Prepare accept for next user" << std::endl;
             }
             // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
             if (PrepareRead(cqe->res) <= 0) {
                 std::cout << "[Error] Error: fail to prepare read." << std::endl;
                 break;
-            } else {
-                std::cout << "Prepare read for current user" << std::endl;
             }
             break;
         case REQUEST_TYPE_READ: {
@@ -234,18 +221,11 @@ void Rocket::Start() {
                     if (PrepareWrite(client_sock, shake, _max_buffer_size) <= 0) {
                         std::cout << "Fail to prepare write task." << std::endl;
                     }
-                    std::cout << "Prepare write for shake" << std::endl;
                     clients[client_sock] = client;
                     // 提交一个新的读任务
                     if (PrepareRead(client_sock) <= 0) {
                         std::cout << "Fail to prepare read task." << std::endl;
                     }
-                    std::cout << "Prepare read for hand shaked user" << std::endl;
-                    // debug
-                    // printf("server tx: ");
-                    // PrintHex(client.tx, crypto_kx_SESSIONKEYBYTES);
-                    // printf("server rx: ");
-                    // PrintHex(client.rx, crypto_kx_SESSIONKEYBYTES);
                     break;
                 }
             }
@@ -270,17 +250,10 @@ void Rocket::Start() {
                 if (PrepareRead(client_sock) <= 0) {
                     std::cout << "Fail to prepare read task." << std::endl;
                 }
-                std::cout << "Prepare read for non-last message" << std::endl;
             } else {
                 auto iter = wait_queue.find(client_sock);
                 // 消息总块数
                 auto buffer_count = iter->second.size();
-                // 打印消息分块情况
-                // for (auto buffer__ : iter->second) {
-                //     unsigned length__ = ((unsigned)(buffer__.buffer[1] << 8)) |
-                //           ((unsigned)(buffer__.buffer[2]) & 0x00FF);
-                //     PrintHex((unsigned char *)buffer__.buffer, length__);
-                // }
                 // 利用RomeSocketConcatenate拼接层接口拼接缓冲区
                 Buffer complete_cipher_buffer = RomeSocketConcatenate(iter->second.data(), buffer_count);
                 // 查询私钥
@@ -346,8 +319,6 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length, i < length - 1) <= 0) {
             std::cout << "Fail to prepare write" << std::endl;
             return -2;
-        } else {
-            std::cout << "Prepare write for block message" << std::endl;
         }
     }
     // 清理资源
@@ -361,8 +332,6 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         if (PrepareRead(client_id) <= 0) {
             std::cout << "Fail to prepare read more" << std::endl;
             return -2;
-        } else {
-            std::cout << "Prepare read for more message" << std::endl;
         }
     }
     Submit();
