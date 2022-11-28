@@ -284,6 +284,10 @@ void Rocket::Start() {
         case REQUEST_TYPE_WRITE:
             break;
         }
+        auto iter = clients.find(cqe_request->client_sock);
+        if (iter != clients.end()) {
+            iter->second.last_time = time(nullptr);
+        }
         Submit();
         _ring_mutex.lock();
         io_uring_cqe_seen(&_ring, cqe);
