@@ -132,11 +132,13 @@ void Rocket::FreeRequest(Request **request) {
 }
 
 void Rocket::Start() {
+    // 初始化套接字、IO Uring等资源
     Initialize(_port);
     if (_sock == -1) {
         throw SocketException();
     }
 
+    // 提交一个初始的sqe，用于接收首个用户的连接
     sockaddr client_addr;
     socklen_t addr_len = sizeof(client_addr);
     if (PrepareAccept(&client_addr, &addr_len) <= 0) {
@@ -149,32 +151,29 @@ void Rocket::Start() {
     OnStart();
 
     while (1) {
-        // 每n个时间片处理一次事务
-        long n = 2000, count = 0;
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
         if (io_uring_wait_cqe(&_ring, &cqe) != 0) {
-            // 删除过期的客户
-            if (count++ == n) {
-                count = 0;
-                auto it = clients.begin();
-                while (it != clients.end()) {
-                    if (it->second.last_time + timeout < time(nullptr)) {
-                        close(it->second.connection);
-                        it = clients.erase(it);
-                    } else {
-                        ++it;
-                    }
-                }
-            }
+            std::cerr << "Fail to wait cqe" << std::endl;
             continue;
         }
 
+        // 删除过期的客户
+        auto it = clients.begin();
+        while (it != clients.end()) {
+            if (it->second.last_time + timeout < time(nullptr)) {
+                close(it->second.connection);
+                it = clients.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        // 任务出现问题
         if (cqe->res <= 0) {
             std::unique_lock<std::mutex> lock(_ring_mutex);
             io_uring_cqe_seen(&_ring, cqe);
-            submited--;
             continue;
         }
         Request *cqe_request = reinterpret_cast<Request *>(cqe->user_data);
@@ -200,8 +199,8 @@ void Rocket::Start() {
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
             char hello[8];
             memcpy(hello, buffer, 8);
+            // 是握手包
             if (hello[7]== 0x00 && std::string(hello) == "RSHELLO") {
-                // 是握手包
                 Client client;
                 client.connection = client_sock;
                 client.last_time = time(nullptr);
@@ -245,8 +244,9 @@ void Rocket::Start() {
                 });
             }
 
+            // 检查该分组是否为一个报文的最后一组，如果是，则组装并解密报文，交给用户处理
             if ((unsigned char)flag != 0xFF) {
-                // 提交一个新的读任务
+                // 不是最后一组，因此提交一个新的读任务
                 if (PrepareRead(client_sock) <= 0) {
                     std::cout << "Fail to prepare read task." << std::endl;
                 }
