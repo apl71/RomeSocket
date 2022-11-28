@@ -4,6 +4,16 @@
 #include <unistd.h>
 #include <fstream>
 
+std::string UnitConversion(double bps) {
+    std::vector<std::string> units{"bps", "Kbps", "Mbps", "Gbps", "Tbps"};
+    int unit = 0;
+    while (bps >= 1024.0 && unit < units.size()) {
+        bps /= 1024.0;
+        ++unit;
+    }
+    return std::to_string(bps) + units[unit];
+}
+
 class EchoServer : public Rocket {
 private:
     time_t start_time = 0;
@@ -18,17 +28,17 @@ public:
         std::cout << "Server start." << std::endl;
     }
 
-    // average throughoutput = 731352 bytes/second
+    // average throughoutput = 10.999334Mbps
     void OnRead(char *buff, size_t size, int clinet_id) override {
         // 将开始时间记为首次读取用户输入的时间
         if (start_time == 0) {
             last_cout = start_time = time(nullptr);
         }
-        total_bytes += size;
+        total_bytes += size * 2;
         end_time = time(nullptr);
         // 每三秒计算一次平均吞吐量
-        if (end_time - last_cout > 3) {
-            std::cout << "Average throughoutput = " << total_bytes / (double)(end_time - start_time) << " bytes/second" << std::endl;
+        if (end_time - last_cout > 2) {
+            std::cout << "Average throughoutput = " << UnitConversion(total_bytes * 8 / (double)(end_time - start_time)) << std::endl;
             last_cout = time(nullptr);
         }
         if (Write(buff, size, clinet_id, true) < 0) {
