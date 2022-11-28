@@ -5,7 +5,7 @@ WORKDIR /app
 
 ## 基础路径为../${PROJECT_ROOT}
 ## 复制必要的动态库
-COPY liburing-2.2/src/liburing.so.2.2                  /lib/liburing.so.2
+COPY liburing-2.3/src/liburing.so.2.3                  /lib/liburing.so.2
 COPY libsodium-stable/src/libsodium/.libs/libsodium.so /lib/libsodium.so.23
 COPY RomeSocket/build/release/librocket.so             /lib/
 COPY RomeSocket/build/release/echo_server              /bin/
