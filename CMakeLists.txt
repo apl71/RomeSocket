@@ -19,7 +19,6 @@ include_directories(include)
 
 set (SOURCES
 	source/thread_pool.cpp
-    source/memory_pool.cpp
 	source/romesocket.cpp
     source/layer.c
     source/client.c)
