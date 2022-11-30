@@ -86,8 +86,11 @@ void go(int id) {
     RomeSocketClose(&connection);
 }
 
-int main() {
-    unsigned threads = 1;
+int main(int argc, char **argv) {
+    int threads = 1;
+    if (argc > 1) {
+        threads = std::atoi(argv[1]);
+    }
     ThreadPool pool(threads, threads);
     for (int i = 0; i < threads; ++i)
         pool.AddTask(go, i);
