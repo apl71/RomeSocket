@@ -52,9 +52,9 @@ void go(int id) {
     // 测试数量
     unsigned test_cases = 1000;
     for (unsigned i = 0; i < test_cases; ++i) {
-        // io_mutex.lock();
-        // std::cout << "Thread " << id << ":\t";
-        // io_mutex.unlock();
+        io_mutex.lock();
+        std::cout << "Thread " << id << ":\t";
+        io_mutex.unlock();
         // 生成随机数据
         Buffer data = RandomBytes();
         RomeSocketSend(connection, data);
@@ -67,19 +67,18 @@ void go(int id) {
             continue;
         }
         int result = Compare(data, buffer);
+        io_mutex.lock();
         if (result != -1) {
-            io_mutex.lock();
-        // io
             std::cout << red << "[FAIL] " << reset
                       << std::dec << "Test case " << i << " fail: "
                       << "Inconstant first occur at " << result << std::endl;
             std::cout << "length: " << data.length << " and " << buffer.length << std::endl;
             PrintHex((unsigned char *)data.buffer, data.length);
             PrintHex((unsigned char *)buffer.buffer, buffer.length);
-            io_mutex.unlock();
         } else {
-            // std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass" << std::endl;
+            std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass" << std::endl;
         }
+        io_mutex.unlock();
         delete[]buffer.buffer;
         delete[]data.buffer;
     }
@@ -88,7 +87,8 @@ void go(int id) {
 }
 
 int main() {
-    ThreadPool pool(4, 4);
-    for (int i = 0; i < 4; ++i)
+    unsigned threads = 1;
+    ThreadPool pool(threads, threads);
+    for (int i = 0; i < threads; ++i)
         pool.AddTask(go, i);
 }
