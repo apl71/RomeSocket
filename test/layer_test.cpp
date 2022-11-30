@@ -8,7 +8,9 @@ protected:
 
     void SetUp() override {
         // 生成密钥
-        sodium_init();
+        if (sodium_init() < 0) {
+            exit(-1);
+        }
         unsigned char key[crypto_kx_SESSIONKEYBYTES];
         randombytes_buf(key, crypto_kx_SESSIONKEYBYTES);
         // 生成随机数据
