@@ -6,7 +6,7 @@
 
 std::string UnitConversion(double bps) {
     std::vector<std::string> units{"bps", "Kbps", "Mbps", "Gbps", "Tbps"};
-    int unit = 0;
+    size_t unit = 0;
     while (bps >= 1024.0 && unit < units.size()) {
         bps /= 1024.0;
         ++unit;
