@@ -16,8 +16,6 @@ struct Buffer {
 
 void PrintHex(unsigned char *data, size_t length);
 
-void Endian();
-
 // 定义头部长度
 #define HEADER_LENGTH 3
 #define BLOCK_LENGTH 8192

@@ -101,7 +101,6 @@ int main(int argc, char **argv) {
     int threads = 1;
     std::string server = "localhost";
     int port = 8000;
-    Endian();
     // 解析参数
     if (argc >= 2) {
         threads = std::atoi(argv[1]);

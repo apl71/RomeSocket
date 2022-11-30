@@ -26,7 +26,6 @@ public:
 
     void OnStart() override {
         std::cout << "Server start." << std::endl;
-        Endian();
     }
 
     // average throughoutput = 10.999334Mbps

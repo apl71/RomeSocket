@@ -8,17 +8,7 @@ void PrintHex(unsigned char *data, size_t length) {
     printf("\n");
 }
 
-void Endian() {
-	int as = 0x12345678;
-	char *p =(char *) &as;
-	if(*p == 0x12)
-		printf("Big-endian\n");
-	else
-		printf("Little-endian\n");
-}
-
 struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
-    printf("start concatenate.\n");
     unsigned total_length = 0; // 有效数据的总长度
     unsigned *block_length = (unsigned *)malloc(sizeof(unsigned) * count); // 暂存块长度
     for (unsigned  i = 0; i < count; ++i) {
@@ -28,7 +18,6 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
         }
         block_length[i] = ((unsigned)(buffers[i].buffer[1] << 8)) |
                           ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
-        printf("block length %u = %u\n", i, block_length[i]);
         if (block_length[i] >= 0xFFFF) {
             struct Buffer null = {NULL, 0};
             return null;
@@ -51,9 +40,6 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     // 返回结果
     free(block_length);
     struct Buffer result = {complete, total_length};
-    // debug
-    printf("end concatenating.\n");
-    // PrintHex(result.buffer, result.length);
     return result;
 }
 
