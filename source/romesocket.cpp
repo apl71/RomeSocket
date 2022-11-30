@@ -8,13 +8,16 @@
 #include "layer.h"
 #include "client.h"
 
-Rocket::Rocket(uint16_t port) : _port(port)
-{
+Rocket::Rocket(uint16_t port) : _port(port) {
     pool = new ThreadPool();
     if (sodium_init() < 0) {
         exit(0);
     }
     crypto_kx_keypair(server_pk, server_sk);
+}
+
+void Rocket::SetRingSize(size_t size) {
+    _ring_size = size;
 }
 
 void Rocket::Initialize(int port) {

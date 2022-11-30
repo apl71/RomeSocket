@@ -78,6 +78,9 @@ public:
     Rocket(uint16_t port);
     ~Rocket();
 
+    // 设置io_uring队列长度，在调用Start()前调用
+    void SetRingSize(size_t size);
+
     // 启动事件
     virtual void OnStart() = 0;
 
