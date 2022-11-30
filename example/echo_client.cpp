@@ -23,7 +23,9 @@ std::mutex io_mutex;
 // 长度为0表示随机长度，范围是1-1024*1024字节
 // 需要手动清理返回的数组
 Buffer RandomBytes(unsigned length = 0) {
-    sodium_init();
+    if (sodium_init() < 0) {
+        return Buffer{nullptr, 0};
+    }
     // 随机数
     while (length == 0) {
         length = randombytes_uniform(1024 * 16);
@@ -58,6 +60,13 @@ void go(int id, std::string server, int port) {
         // io_mutex.unlock();
         // 生成随机数据
         Buffer data = RandomBytes();
+        if (!data.buffer || data.length == 0) {
+            std::lock_guard<std::mutex> lock(io_mutex);
+            std::cout << red << "[FAIL] " << reset
+                      << std::dec << "Test case " << i << " fail: "
+                      << "fail to generate data." << std::endl;
+            continue;
+        }
         RomeSocketSend(connection, data);
         Buffer buffer = RomeSocketReceive(connection, 256);
         if (!buffer.buffer) {
