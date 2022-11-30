@@ -203,7 +203,7 @@ void Rocket::Start() {
             char hello[8];
             memcpy(hello, buffer, 8);
             // 是握手包
-            if (hello[7]== 0x00 && std::string(hello) == "RSHELLO") {
+            if (hello[7] == 0x00 && std::string(hello) == "RSHELLO") {
                 Client client;
                 client.connection = client_sock;
                 client.last_time = time(nullptr);
@@ -262,7 +262,9 @@ void Rocket::Start() {
                 // 查询私钥
                 auto client_iter = clients.find(client_sock);
                 if (client_iter == clients.end()) {
-                    return;
+                    std::cerr << "fail to get client info." << std::endl;
+                    delete[]complete_cipher_buffer.buffer;
+                    break;
                 }
                 unsigned char *server_rx = client_iter->second.rx;
                 // 利用RomeSocketDecrypt解密层接口解密
