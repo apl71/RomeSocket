@@ -47,8 +47,13 @@ public:
     }
 };
 
-int main() {
+int main(int argc, char **argv) {
+    int ring_size = 128;
+    if (argc > 1) {
+        ring_size = std::atoi(argv[1]);
+    }
     EchoServer server(8000);
+    server.SetRingSize(ring_size);
     int retry = 1;
     int max_retry = 30;
     while (1) {
