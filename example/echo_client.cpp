@@ -1,3 +1,7 @@
+/*
+    Usage: echo_client [threads] [hostname/IP] [port]
+*/
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -9,9 +13,6 @@
 #include <iostream>
 #include "thread_pool.hpp"
 #include "client.h"
-
-#define SERVER "localhost"
-#define PORT 8000
 
 const std::string red   = "\033[31m";
 const std::string green = "\033[32m";
@@ -46,8 +47,8 @@ int Compare(Buffer a, Buffer b) {
     return -1;
 }
 
-void go(int id) {
-    Connection connection = RomeSocketConnect(SERVER, PORT);
+void go(int id, std::string server, int port) {
+    Connection connection = RomeSocketConnect(server.c_str(), port);
 
     // 测试数量
     unsigned test_cases = 1000;
@@ -87,11 +88,19 @@ void go(int id) {
 }
 
 int main(int argc, char **argv) {
+    // 默认配置
     int threads = 1;
-    if (argc > 1) {
+    std::string server = "localhost";
+    int port = 8000;
+    // 解析参数
+    if (argc >= 2) {
         threads = std::atoi(argv[1]);
+    }
+    if (argc >= 4) {
+        server = std::string(argv[2]);
+        port = std::atoi(argv[3]);
     }
     ThreadPool pool(threads, threads);
     for (int i = 0; i < threads; ++i)
-        pool.AddTask(go, i);
+        pool.AddTask(go, i, server, port);
 }
