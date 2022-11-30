@@ -41,8 +41,9 @@ public:
             std::cout << "Average throughoutput = " << UnitConversion(total_bytes * 8 / (double)(end_time - start_time)) << std::endl;
             last_cout = time(nullptr);
         }
-        if (Write(buff, size, clinet_id, true) < 0) {
-            std::cout << "Error when writing." << std::endl;
+        int result = Write(buff, size, clinet_id, true);
+        if (result < 0) {
+            std::cout << "Error when writing: " << result << std::endl;
         }
     }
 };
