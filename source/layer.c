@@ -8,6 +8,30 @@ void PrintHex(unsigned char *data, size_t length) {
     printf("\n");
 }
 
+int RomeSocketCheckHello(struct Buffer buffer, unsigned char *pk) {
+    if (buffer.length < 11 + crypto_kx_PUBLICKEYBYTES ||
+        (unsigned char)buffer.buffer[7]  != 0x00 ||
+        (unsigned char)buffer.buffer[8]  != 0xFF ||
+        (unsigned char)buffer.buffer[9]  != 0x00 ||
+        (unsigned char)buffer.buffer[10] != 0xFF ||
+        memcmp("RSHELLO", buffer.buffer, 7) != 0) {
+        return 0;
+    }
+    memcpy(pk, buffer.buffer + 11, crypto_kx_PUBLICKEYBYTES);
+    return 1;
+}
+
+int RomeSocketGetHello(struct Buffer *buffer, unsigned char *pk) {
+    if (buffer->length < 11 + crypto_kx_PUBLICKEYBYTES) {
+        return 0;
+    }
+    memcpy(buffer->buffer, "RSHELLO", 7);
+    buffer->buffer[7] = buffer->buffer[9]  = 0x00;
+    buffer->buffer[8] = buffer->buffer[10] = 0xFF;
+    memcpy(buffer->buffer + 11, pk, crypto_kx_PUBLICKEYBYTES);
+    return 1;
+}
+
 struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     unsigned total_length = 0; // 有效数据的总长度
     unsigned *block_length = (unsigned *)malloc(sizeof(unsigned) * count); // 暂存块长度
