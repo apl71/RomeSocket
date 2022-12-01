@@ -200,27 +200,24 @@ void Rocket::Start() {
             char *buffer = new char[_max_buffer_size];
             int client_sock = cqe_request->client_sock;
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
-            char hello[8];
-            memcpy(hello, buffer, 8);
+            Buffer hello = {buffer, (unsigned)_max_buffer_size};
+            unsigned char client_pk[crypto_kx_PUBLICKEYBYTES];
             // 是握手包
-            if (hello[7] == 0x00 && std::string(hello) == "RSHELLO") {
+            if (RomeSocketCheckHello(hello, client_pk) == 1) {
                 Client client;
                 client.connection = client_sock;
                 client.last_time = time(nullptr);
-                // 提取用户公钥
-                unsigned char client_pk[crypto_kx_PUBLICKEYBYTES];
-                memcpy(client_pk, buffer + 8, crypto_kx_PUBLICKEYBYTES);
                 // 生成密钥对
                 if (crypto_kx_server_session_keys(client.rx, client.tx,
                                         server_pk, server_sk, client_pk) != 0) {
                     break;
                 } else {
                     // 发回握手包
-                    char *shake = new char[_max_buffer_size];
-                    memset(shake, 0, _max_buffer_size);
-                    strcpy(shake, "RSHELLO");
-                    memcpy(shake + 8, server_pk, crypto_kx_PUBLICKEYBYTES);
-                    if (PrepareWrite(client_sock, shake, _max_buffer_size) <= 0) {
+                    Buffer shake = {new char[_max_buffer_size], (unsigned)_max_buffer_size};
+                    if (RomeSocketGetHello(&shake, server_pk) != 1) {
+                        std::cerr << "Fail to generate shake package." << std::endl;
+                    }
+                    if (PrepareWrite(client_sock, shake.buffer, shake.length) <= 0) {
                         std::cout << "Fail to prepare write task." << std::endl;
                     }
                     clients[client_sock] = client;
@@ -228,6 +225,7 @@ void Rocket::Start() {
                     if (PrepareRead(client_sock) <= 0) {
                         std::cout << "Fail to prepare read task." << std::endl;
                     }
+                    delete[]shake.buffer;
                     break;
                 }
             }

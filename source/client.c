@@ -33,15 +33,20 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port) {
     // 接收来自服务器的公钥
     unsigned char server_pk[crypto_kx_PUBLICKEYBYTES];
     // 发送明文hello消息，并附上自己的公钥
-    char hello[BLOCK_LENGTH];
-    memset(hello, 0, BLOCK_LENGTH);
-    strcpy(hello, "RSHELLO");
-    memcpy(hello + 8, client_pk, crypto_kx_PUBLICKEYBYTES);
-    RomeSocketSendAll(sock, hello, BLOCK_LENGTH);
+    char temp[BLOCK_LENGTH];
+    struct Buffer hello = {temp, BLOCK_LENGTH};
+    if (RomeSocketGetHello(&hello, client_pk) != 1) {
+        printf("Fail to generate hello package.");
+        exit(1);
+    }
+    RomeSocketSendAll(sock, hello.buffer, hello.length);
     // 接收握手消息，收到公钥
     char shake[BLOCK_LENGTH];
     RomeSocketReceiveAll(sock, shake);
-    memcpy(server_pk, shake + 8, crypto_kx_PUBLICKEYBYTES);
+    if (RomeSocketCheckHello((struct Buffer){shake, BLOCK_LENGTH}, server_pk) != 1) {
+        printf("Bad shake package.");
+        exit(1);
+    }
     // 计算密钥
     if (crypto_kx_client_session_keys(client_rx, client_tx,
                                     client_pk, client_sk, server_pk) != 0) {
