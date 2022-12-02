@@ -250,8 +250,6 @@ void Rocket::Start() {
                 });
             }
 
-            PrintHex((unsigned char *)buffer, _max_buffer_size);
-
             // 检查该分组是否为一个报文的最后一组，如果是，则组装并解密报文，交给用户处理
             if ((unsigned char)flag != 0xFF) {
                 std::cout << "get package: " << (unsigned)flag << std::endl;

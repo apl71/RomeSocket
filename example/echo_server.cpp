@@ -41,7 +41,6 @@ public:
 
     // average throughoutput = 10.999334Mbps
     void OnRead(char *buff, size_t size, int clinet_id) override {
-        std::cout << "Get message length = " << size << std::endl;
         // 将开始时间记为首次读取用户输入的时间
         if (start_time == 0) {
             last_cout = start_time = time(nullptr);

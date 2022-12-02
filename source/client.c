@@ -65,11 +65,6 @@ void RomeSocketSend(struct Connection sock, struct Buffer send_buffer) {
     // 逐块发送
     for (unsigned i = 0; i < length; ++i) {
         RomeSocketSendAll(sock.sock, buffers[i].buffer, buffers[i].length);
-        // printf("send: \n");
-        // unsigned length__ = ((unsigned)(buffers[i].buffer[1] << 8)) |
-        //                   ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
-        // PrintHex(buffers[i].buffer, length__);
-        PrintHex(buffers[i].buffer, buffers[i].length);
     }
     // 清理资源
     free(ciphertext.buffer);
