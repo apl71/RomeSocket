@@ -21,11 +21,22 @@ private:
     uint64_t total_bytes = 0;
     time_t last_cout = 0;
 
+    time_t t = 5; // 每2秒执行一次周期任务
+    time_t last_time = 0;
+
 public:
     using Rocket::Rocket;
 
     void OnStart() override {
         std::cout << "Server start." << std::endl;
+        last_time = time(nullptr);
+    }
+
+    void ChronicTask(time_t now) override {
+        if (last_time + t <= now) {
+            std::cout << "Chronic task executing." << std::endl;
+            last_time = now;
+        }
     }
 
     // average throughoutput = 10.999334Mbps
