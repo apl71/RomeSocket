@@ -83,6 +83,15 @@ add_executable(echo_client ${ECHO_CLIENT_TEST_SOURCES})
 
 target_link_libraries(echo_client PUBLIC uring pthread sodium)
 
+set (ECHO_TOY_TEST_SOURCES
+	example/echo_toy.cpp
+    source/client.c
+    source/layer.c)
+
+add_executable(echo_toy ${ECHO_TOY_TEST_SOURCES})
+
+target_link_libraries(echo_toy PUBLIC sodium)
+
 ## key exchange测试
 add_executable(key_exchange example/key_exchange.c)
 target_link_libraries(key_exchange PUBLIC sodium)
