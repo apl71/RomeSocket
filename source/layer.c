@@ -37,12 +37,14 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     unsigned *block_length = (unsigned *)malloc(sizeof(unsigned) * count); // 暂存块长度
     for (unsigned  i = 0; i < count; ++i) {
         if (buffers[i].length < 3) {
+            printf("RomeSocketConcatenate: Too short buffer: %u\n", buffers[i].length);
             struct Buffer null = {NULL, 0};
             return null;
         }
         block_length[i] = ((unsigned)(buffers[i].buffer[1] << 8)) |
                           ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
         if (block_length[i] >= 0xFFFF) {
+            printf("RomeSocketConcatenate: Bad buffer length header: %x and %x = %u\n", buffers[i].buffer[1], buffers[i].buffer[2], block_length[i]);
             struct Buffer null = {NULL, 0};
             return null;
         }
@@ -51,6 +53,7 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     // 申请内存
     char *complete = (char *)malloc(total_length);
     if (!complete) {
+        printf("RomeSocketConcatenate: Fail to allocate memory\n");
         struct Buffer null = {NULL, 0};
         return null;
     }
@@ -70,11 +73,13 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
 struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
     // 初始化sodium
     if (sodium_init() < 0) {
+        printf("RomeSocketDecrypt: Fail to initialize libsodium.\n");
         struct Buffer null = {NULL, 0};
         return null;
     }
     // 检查长度
     if (buffer.length < crypto_secretbox_NONCEBYTES + crypto_secretbox_MACBYTES) {
+        printf("RomeSocketDecrypt: Too short buffer: %u\n", buffer.length);
         struct Buffer null = {NULL, 0};
         return null;
     }
@@ -90,16 +95,10 @@ struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
             nonce,
             rx) == 0) {
         struct Buffer result = {plaintext, buffer.length - crypto_secretbox_NONCEBYTES - crypto_secretbox_MACBYTES};
-        // printf("decrypting buffer length %u:\n", buffer.length);
-        // PrintHex(buffer.buffer, buffer.length);
-        // printf("After decryption: using rx = \n");
-        // PrintHex(rx, crypto_kx_SESSIONKEYBYTES);
-        // printf("nonce = ");
-        // PrintHex(nonce, crypto_secretbox_NONCEBYTES);
-        // PrintHex(result.buffer, result.length);
         return result;
     } else {
         // MAC认证失败
+        printf("RomeSocketDecrypt: MAC authentication fail");
         struct Buffer null = {NULL, 0};
         return null;
     }
@@ -110,6 +109,11 @@ struct Buffer RomeSocketEncrypt(struct Buffer buffer, unsigned char *tx) {
     // 开辟密文和nonce所需的内存空间
     ciphertext.length = crypto_secretbox_NONCEBYTES + buffer.length + crypto_secretbox_MACBYTES;
     ciphertext.buffer = malloc(ciphertext.length);
+    if (!ciphertext.buffer) {
+        printf("RomeSocketEncrypt: Fail to allocate memory.\n");
+        struct Buffer null = {NULL, 0};
+        return null;
+    }
     // 生成nonce
     randombytes_buf(ciphertext.buffer, crypto_secretbox_NONCEBYTES);
     // 加密
@@ -119,13 +123,6 @@ struct Buffer RomeSocketEncrypt(struct Buffer buffer, unsigned char *tx) {
         buffer.length,
         (unsigned char *)ciphertext.buffer,
         tx);
-    // printf("encrypting buffer length %u:\n", buffer.length);
-    // PrintHex(buffer.buffer, buffer.length);
-    // printf("After encryption: using tx = \n");
-    // PrintHex(tx, crypto_kx_SESSIONKEYBYTES);
-    // printf("nonce = ");
-    // PrintHex(ciphertext.buffer, crypto_secretbox_NONCEBYTES);
-    // PrintHex(ciphertext.buffer, ciphertext.length);
     return ciphertext;
 }
 
@@ -159,10 +156,6 @@ struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length) {
     }
     // 返回数据
     *length = block_num;
-    // printf("After spliting: \n");
-    // for (unsigned i = 0; i < *length; ++i) {
-    //     PrintHex(buffers[i].buffer, buffers[i].length);
-    // }
     return buffers;
 }
 
