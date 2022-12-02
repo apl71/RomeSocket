@@ -272,9 +272,6 @@ void Rocket::Start() {
                 unsigned char *server_rx = client_iter->second.rx;
                 // 利用RomeSocketDecrypt解密层接口解密
                 Buffer complete_plain_buffer = RomeSocketDecrypt(complete_cipher_buffer, server_rx);
-                // printf("message: ");
-                // PrintHex((unsigned char *)complete_plain_buffer.buffer, complete_plain_buffer.length);
-                // printf("\n");
                 // 执行读取事件
                 pool->AddTask([=, this](){
                     OnRead(complete_plain_buffer.buffer, complete_plain_buffer.length, client_sock);
@@ -320,9 +317,6 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         return -3;
     }
     struct Buffer plaintext = {buff, (unsigned)size};
-    // printf("ready to send plaintext length %u:\n", plaintext.length);
-    // PrintHex((unsigned char *)plaintext.buffer, plaintext.length);
-    // printf("\n");
     struct Buffer ciphertext = RomeSocketEncrypt(plaintext, client_iter->second.tx);
     unsigned length = 0;
     struct Buffer *buffers   = RomeSocketSplit(ciphertext, &length);
