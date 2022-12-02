@@ -21,8 +21,10 @@ private:
     uint64_t total_bytes = 0;
     time_t last_cout = 0;
 
-    time_t t = 5; // 每2秒执行一次周期任务
+    time_t t = 10; // 每10秒执行一次周期任务
     time_t last_time = 0;
+
+    std::mutex io_mutex;
 
 public:
     using Rocket::Rocket;
@@ -49,6 +51,7 @@ public:
         end_time = time(nullptr);
         // 每三秒计算一次平均吞吐量
         if (end_time - last_cout > 2) {
+            std::lock_guard<std::mutex> lock(io_mutex);
             std::cout << "Average throughoutput = " << UnitConversion(total_bytes * 8 / (double)(end_time - start_time)) << std::endl;
             last_cout = time(nullptr);
         }
