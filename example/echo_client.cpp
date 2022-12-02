@@ -83,8 +83,8 @@ void go(int id, std::string server, int port) {
                       << std::dec << "Test case " << i << " fail: "
                       << "Inconstant first occur at " << result << std::endl;
             std::cout << "length: " << data.length << " and " << buffer.length << std::endl;
-            PrintHex((unsigned char *)data.buffer, data.length);
-            PrintHex((unsigned char *)buffer.buffer, buffer.length);
+            // PrintHex((unsigned char *)data.buffer, data.length);
+            // PrintHex((unsigned char *)buffer.buffer, buffer.length);
             io_mutex.unlock();
         } else {
             // std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass" << std::endl;
