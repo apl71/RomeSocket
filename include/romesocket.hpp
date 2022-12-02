@@ -87,6 +87,9 @@ public:
     // 启动服务器
     void Start();
 
+    // 周期事件，每次循环都会执行（约0.5s一次）
+    virtual void ChronicTask(time_t now) = 0;
+
     // 注册事件
     virtual void OnRead(char *buffer, size_t size, int client_id) = 0;
 

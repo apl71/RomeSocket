@@ -153,12 +153,17 @@ void Rocket::Start() {
     // 开始服务
     OnStart();
 
+    __kernel_timespec kt = {
+        0,
+        1000 * 1000 * 1000 / 2
+    };
+
     while (1) {
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
-        if (io_uring_wait_cqe(&_ring, &cqe) != 0) {
-            std::cerr << "Fail to wait cqe" << std::endl;
+        if (io_uring_wait_cqe_timeout(&_ring, &cqe, &kt) != 0) {
+            ChronicTask(time(nullptr));
             continue;
         }
 
