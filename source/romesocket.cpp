@@ -250,8 +250,11 @@ void Rocket::Start() {
                 });
             }
 
+            PrintHex((unsigned char *)buffer, _max_buffer_size);
+
             // 检查该分组是否为一个报文的最后一组，如果是，则组装并解密报文，交给用户处理
             if ((unsigned char)flag != 0xFF) {
+                std::cout << "get package: " << (unsigned)flag << std::endl;
                 // 不是最后一组，因此提交一个新的读任务
                 if (PrepareRead(client_sock) <= 0) {
                     std::cout << "Fail to prepare read task." << std::endl;
@@ -273,10 +276,13 @@ void Rocket::Start() {
                 // 利用RomeSocketDecrypt解密层接口解密
                 Buffer complete_plain_buffer = RomeSocketDecrypt(complete_cipher_buffer, server_rx);
                 // 执行读取事件
+                std::cout << "get complete buffer:" << std::endl;
+                std::cout << "cipher length: " << complete_cipher_buffer.length << std::endl;
+                std::cout << "plain  length: " << complete_plain_buffer.length  << std::endl;
                 pool->AddTask([=, this](){
+                    delete[]complete_cipher_buffer.buffer;
                     OnRead(complete_plain_buffer.buffer, complete_plain_buffer.length, client_sock);
                     delete[]complete_plain_buffer.buffer;
-                    delete[]complete_cipher_buffer.buffer;
                 });
                 // 清除缓存的消息块
                 for (auto &i : iter->second) {
