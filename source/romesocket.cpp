@@ -205,7 +205,6 @@ void Rocket::Start() {
             char *buffer = new char[_max_buffer_size];
             int client_sock = cqe_request->client_sock;
             memcpy(buffer, cqe_request->buff, _max_buffer_size);
-            PrintHex((unsigned char *)buffer, _max_buffer_size);
             Buffer hello = {buffer, (unsigned)_max_buffer_size};
             unsigned char client_pk[crypto_kx_PUBLICKEYBYTES];
             // 是握手包
