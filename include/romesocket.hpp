@@ -50,6 +50,13 @@ private:
     // 工作线程池
     ThreadPool *pool;
 
+    // 暂存未完成的读入
+    struct ReadBuffer {
+        Buffer incomplete;
+        int offset;
+    };
+    std::map<int, ReadBuffer> read_queue;
+
     // 暂存未完成的io
     std::map<int, std::vector<Buffer>> wait_queue;
 
@@ -67,11 +74,13 @@ private:
     // 将一个接受用户的请求加入sq
     int PrepareAccept(struct sockaddr *client_addr, socklen_t *addr_len);
     // 将一个读事件的请求加入sq
-    int PrepareRead(int client_sock);
+    int PrepareRead(int client_sock, int size);
     // 将一个写事件的请求加入sq
     int PrepareWrite(int client_sock, char *to_write, size_t size, bool link = false);
     // 将Request结构体清空
     void FreeRequest(Request **request);
+    // 查看读入新块后，是否有新块可以处理，如有，返回该块
+    Buffer CheckFullBlock(int client_sock, char *new_buffer, int read_size);
 
 public:
     // 初始化对象，确定要监听的端口
