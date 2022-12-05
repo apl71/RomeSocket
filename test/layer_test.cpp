@@ -52,9 +52,10 @@ protected:
         bad_hellos[3] = {new char[20], 20};
         bad_hellos[4] = {new char[50], 50};
         memset(bad_hellos[4].buffer, 0, 50);
-        bad_hellos[5] = {"RSHELLO", 8};
+        char hello[8] = "RSHELLO";
+        bad_hellos[5] = {hello, 8};
         bad_hellos[6] = {new char[30], 30};
-        memcpy(bad_hellos[6].buffer, "RSHELLO", 7);
+        memcpy(bad_hellos[6].buffer, hello, 7);
 
         for (int i = 0; i < 8; ++i) {
             int result = RomeSocketCheckHello(bad_hellos[i], (unsigned char *)pk);

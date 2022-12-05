@@ -155,7 +155,7 @@ Buffer Rocket::CheckFullBlock(int client_sock, char *new_buffer,
     memcpy(read_buffer.incomplete.buffer + read_buffer.offset, new_buffer,
            read_size);
     read_buffer.offset += read_size;
-    if (read_buffer.offset == (int)_max_buffer_size) {
+    if ((size_t)read_buffer.offset == _max_buffer_size) {
         full = true;
         current_buffer.buffer = new char[_max_buffer_size];
         current_buffer.length = _max_buffer_size;
