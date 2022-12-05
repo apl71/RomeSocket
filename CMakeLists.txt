@@ -39,9 +39,9 @@ target_link_libraries(rocket PUBLIC pthread)
 target_link_libraries(rocket_shared PUBLIC pthread)
 
 ## 指定公共头文件
-set_target_properties(rocket_shared PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
-set_target_properties(rocket PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp")
-set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h")
+set_target_properties(rocket_shared PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp;include/layer.h")
+set_target_properties(rocket PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;include/thread_pool.hpp;include/layer.h")
+set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h;include/layer.h")
 
 install(TARGETS rocket rocket_shared rocketc
 				LIBRARY DESTINATION /usr/local/lib
