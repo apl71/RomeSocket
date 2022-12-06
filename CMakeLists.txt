@@ -28,7 +28,7 @@ add_library(rocket STATIC ${SOURCES})
 ## 动态库
 add_library(rocket_shared SHARED ${SOURCES})
 ## 客户端库
-add_library(rocketc SHARED source/client.c)
+add_library(rocketc SHARED source/client.c source/layer.c)
 
 ## 指定动态库名称
 set_target_properties(rocket_shared PROPERTIES OUTPUT_NAME "rocket")
