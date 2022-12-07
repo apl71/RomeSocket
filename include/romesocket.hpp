@@ -103,6 +103,9 @@ public:
     virtual void OnRead(char *buffer, size_t size, int client_id) = 0;
 
     int Write(char *buffer, size_t size, int client_id, bool more);
+
+    // 不需要写回信息，但需要继续读的情况，可以调用Pass
+    void Pass(int client_id);
 };
 
 #endif

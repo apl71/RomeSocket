@@ -402,3 +402,10 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     Submit();
     return 1;
 }
+
+void Rocket::Pass(int client_id) {
+    if (PrepareRead(client_id, _max_buffer_size) <= 0) {
+        std::cout << "Fail to prepare read more" << std::endl;
+    }
+    Submit();
+}
