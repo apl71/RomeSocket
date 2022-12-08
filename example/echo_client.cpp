@@ -50,7 +50,7 @@ int Compare(Buffer a, Buffer b) {
 }
 
 void go(int id, std::string server, int port) {
-    Connection connection = RomeSocketConnect(server.c_str(), port);
+    Connection connection = RomeSocketConnect(server.c_str(), port, 15);
 
     // 测试数量
     unsigned test_cases = 1000;

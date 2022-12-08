@@ -10,13 +10,19 @@
 
 #define MAX_CONNECTION 2000
 
-struct Connection RomeSocketConnect(const char *server, const unsigned port) {
+struct Connection RomeSocketConnect(const char *server, const unsigned port, time_t timeout) {
     if (sodium_init() < 0) {
         printf("Fail to initialize libsodium\n");
         exit(0);
     }
     
     int sock = socket(PF_INET, SOCK_STREAM, 0);
+    // 设置超时时间
+    struct timeval tv;
+    tv.tv_sec = timeout;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    // 绑定地址并连接
     struct sockaddr_in addr;
     size_t addr_size = sizeof(struct sockaddr_in);
     memset(&addr, 0, addr_size);

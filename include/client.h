@@ -13,7 +13,7 @@ struct Connection {
     unsigned char *tx;
 };
 
-struct Connection RomeSocketConnect(const char *server, const unsigned port);
+struct Connection RomeSocketConnect(const char *server, const unsigned port, time_t timeout);
 
 void RomeSocketSendAll(int sock, char *send_buff, size_t length);
 
