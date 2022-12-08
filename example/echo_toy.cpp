@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
         server = std::string(argv[1]);
         port = std::atoi(argv[2]);
     }
-    Connection connection = RomeSocketConnect(server.c_str(), port);
+    Connection connection = RomeSocketConnect(server.c_str(), port, 15);
 
     std::cout << "[---------------- Echo Playground ----------------]" << std::endl;
     std::cout << "Enter string to play(127 charactors max), enter exit if bored." << std::endl;
