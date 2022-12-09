@@ -48,17 +48,19 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     RomeSocketSendAll(sock, hello.buffer, hello.length);
     // 接收握手消息，收到公钥
     char shake[BLOCK_LENGTH];
-    RomeSocketReceiveAll(sock, shake);
+    int got = RomeSocketReceiveAll(sock, shake);
+    if (got != BLOCK_LENGTH) {
+        return (struct Connection){-1, NULL, NULL};
+    }
     if (RomeSocketCheckHello((struct Buffer){shake, BLOCK_LENGTH}, server_pk) != 1) {
         printf("Bad shake package.");
-        exit(1);
+        return (struct Connection){-1, NULL, NULL};
     }
     // 计算密钥
     if (crypto_kx_client_session_keys(client_rx, client_tx,
                                     client_pk, client_sk, server_pk) != 0) {
         printf("Client: Suspicious server key, abort.\n");
-        struct Connection conn = {0, NULL, NULL};
-        return conn;
+        return (struct Connection){-1, NULL, NULL};
     }
     struct Connection conn = {sock, client_rx, client_tx};
     return conn;
@@ -89,13 +91,17 @@ void RomeSocketSendAll(int sock, char *send_buff, size_t length) {
     }
 }
 
-void RomeSocketReceiveAll(int sock, char *buffer) {
+int RomeSocketReceiveAll(int sock, char *buffer) {
     size_t got = 0, remain = BLOCK_LENGTH;
     while (remain > 0) {
         size_t size = recv(sock, buffer + got, remain, 0);
+        if (size == 0) {
+            break;
+        }
         got += size;
         remain -= size;
     }
+    return got;
 }
 
 // 返回的Buffer结构需要手动清理
@@ -103,18 +109,26 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
     // 接收全部报文
     struct Buffer *temp_list = malloc(sizeof (struct Buffer) * max_block);
     unsigned count = 0;
+    int timeout = 0;
     while (count < max_block - 1) {
         temp_list[count].buffer = malloc(sizeof(char) * BLOCK_LENGTH);
-        RomeSocketReceiveAll(conn.sock, temp_list[count].buffer);
+        int got = RomeSocketReceiveAll(conn.sock, temp_list[count].buffer);
+        if (got != BLOCK_LENGTH) {
+            timeout = 1;
+            break;
+        }
         temp_list[count].length = BLOCK_LENGTH;
         if ((unsigned char)temp_list[count++].buffer[0] == 0xFF) {
             break;
         }
     }
-    // 拼接
-    struct Buffer ciphertext = RomeSocketConcatenate(temp_list, count);
-    // 解密
-    struct Buffer plaintext = RomeSocketDecrypt(ciphertext, conn.rx);
+    struct Buffer ciphertext, plaintext = {NULL, 0};
+    if (!timeout) {
+        // 拼接
+        ciphertext = RomeSocketConcatenate(temp_list, count);
+        // 解密
+        plaintext = RomeSocketDecrypt(ciphertext, conn.rx);
+    }
     // 清理缓存
     free(ciphertext.buffer);
     for (unsigned i = 0; i < count; ++i) {

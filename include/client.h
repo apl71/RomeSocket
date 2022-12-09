@@ -19,9 +19,7 @@ void RomeSocketSendAll(int sock, char *send_buff, size_t length);
 
 void RomeSocketSend(struct Connection sock, struct Buffer send_buffer);
 
-// void RomeSocketSplitAndSend(int sock, const char *buffer, const unsigned size);
-
-void RomeSocketReceiveAll(int sock, char *buffer);
+int RomeSocketReceiveAll(int sock, char *buffer);
 
 struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block);
 
