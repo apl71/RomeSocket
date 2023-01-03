@@ -41,7 +41,7 @@ protected:
         ASSERT_EQ(result, 1);
         // 一致性测试
         BufferTest({pk, crypto_kx_PUBLICKEYBYTES}, {(char *)pk_test, crypto_kx_PUBLICKEYBYTES});
-        delete[]hello.buffer;
+        RomeSocketClearBuffer(hello);
     }
 
     void BadHelloTester() {;
