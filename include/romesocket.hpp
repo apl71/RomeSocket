@@ -10,12 +10,19 @@
 #include <map>
 #include "layer.h"
 #include <sodium.h>
+#include <fstream>
 
 #define REQUEST_TYPE_ACCEPT 1
 #define REQUEST_TYPE_READ 2
 #define REQUEST_TYPE_WRITE 3
 
 constexpr unsigned SERVER_HEADER_LENGTH = 3;
+
+// 输出颜色
+const std::string yellow = "\033[0;33m";
+const std::string green  = "\033[0;32m";
+const std::string red    = "\033[0;31m";
+const std::string reset  = "\033[0m";
 
 struct Request {
     int type;
@@ -50,6 +57,10 @@ private:
     // 工作线程池
     ThreadPool *pool;
 
+    // 日志文件
+    std::ofstream *log_file = nullptr;
+    bool colored;
+
     // 暂存未完成的读入
     struct ReadBuffer {
         Buffer incomplete;
@@ -67,6 +78,9 @@ private:
     unsigned char server_pk[crypto_kx_PUBLICKEYBYTES];
     unsigned char server_sk[crypto_kx_SECRETKEYBYTES];
 
+    // 日志锁
+    std::mutex log_lock;
+
     // 初始化套接字
     void Initialize(int port);
     // 提交所有任务
@@ -81,6 +95,8 @@ private:
     void FreeRequest(Request **request);
     // 查看读入新块后，是否有新块可以处理，如有，返回该块
     Buffer CheckFullBlock(int client_sock, char *new_buffer, int read_size);
+    // 将字符串计入日志 level: 0=绿色info 1=黄色warning 2=红色error
+    void Log(const std::string &data, int level);
 
 public:
     // 初始化对象，确定要监听的端口
@@ -106,6 +122,9 @@ public:
 
     // 不需要写回信息，但需要继续读的情况，可以调用Pass
     void Pass(int client_id);
+
+    // 设定日志信息
+    void SetLogFile(std::string log, bool color);
 };
 
 #endif

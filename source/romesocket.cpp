@@ -1,12 +1,9 @@
 #include "romesocket.hpp"
-
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-
 #include <iostream>
-
 #include "client.h"
 #include "exception.hpp"
 #include "layer.h"
@@ -25,7 +22,8 @@ void Rocket::Initialize(int port) {
     // 初始化套接字
     _sock = socket(PF_INET, SOCK_STREAM, 0);
     if (_sock == -1) {
-        std::cout << "Initialize: Fail to create socket." << std::endl;
+        //std::cout << "Initialize: Fail to create socket." << std::endl;
+        Log("Initialize: Fail to create socket.", 2);
         return;
     }
     sockaddr_in addr;
@@ -36,14 +34,16 @@ void Rocket::Initialize(int port) {
     if (bind(_sock, (sockaddr *)&addr, sizeof(sockaddr_in)) == -1) {
         close(_sock);
         _sock = -1;
-        std::cout << "Initialize: Fail to bind port." << std::endl;
+        //std::cout << "Initialize: Fail to bind port." << std::endl;
+        Log("Initialize: Fail to bind port.", 2);
         return;
     }
 
     if (listen(_sock, _max_connection) == -1) {
         close(_sock);
         _sock = -1;
-        std::cout << "Initialize: Fail to listen to port." << std::endl;
+        //std::cout << "Initialize: Fail to listen to port." << std::endl;
+        Log("Initialize: Fail to listen to port.", 2);
         return;
     }
 
@@ -52,8 +52,8 @@ void Rocket::Initialize(int port) {
     if (result != 0) {
         close(_sock);
         _sock = -1;
-        std::cout << "Initialize: Fail to initialize io_uring." << result
-                  << std::endl;
+        //std::cout << "Initialize: Fail to initialize io_uring." << result
+        Log("Initialize: Fail to initialize io_uring.", 2);
         return;
     }
 }
@@ -170,6 +170,40 @@ Buffer Rocket::CheckFullBlock(int client_sock, char *new_buffer,
     return current_buffer;
 }
 
+void Rocket::Log(const std::string &data, int level) {
+    if (log_file) {
+        std::lock_guard<std::mutex> lock(log_lock);
+        // 获取当前的时间
+        time_t now = time(nullptr);
+        tm *ltm = localtime(&now);
+        std::string time = std::to_string(ltm->tm_year + 1900)
+            + "-" + std::to_string(ltm->tm_mon + 1)
+            + "-" + std::to_string(ltm->tm_mday)
+            + " " + std::to_string(ltm->tm_hour)
+            + ":" + std::to_string(ltm->tm_min)
+            + ":" + std::to_string(ltm->tm_sec);
+        // 选择正确的颜色和等级文字
+        std::string level_color = nullptr;
+        std::string level_text = "";
+        switch (level) {
+            case 0: level_color = green,  level_text = "[  INFO   ]"; break;
+            case 1: level_color = yellow, level_text = "[ WARNING ]"; break;
+            case 2: level_color = red,    level_text = "[  ERROR  ]"; break;
+            default: return;
+        }
+        // 输出到文件
+        *log_file << "[" << time << "] "; 
+        if (colored) {
+            *log_file << level_color;
+        }
+        *log_file << level_text;
+        if (colored) {
+            *log_file << reset;
+        }
+        *log_file << data << std::endl;
+    }
+}
+
 void Rocket::Start() {
     // 初始化套接字、IO Uring等资源
     Initialize(_port);
@@ -181,8 +215,8 @@ void Rocket::Start() {
     sockaddr client_addr;
     socklen_t addr_len = sizeof(client_addr);
     if (PrepareAccept(&client_addr, &addr_len) <= 0) {
-        std::cout << "[Error] Fatal error: fail to prepare accept."
-                  << std::endl;
+        //std::cout << "[Error] Fatal error: fail to prepare accept."
+        Log("Start: fail to prepare accept.", 2);
         exit(0);
     }
     Submit();
@@ -227,14 +261,14 @@ void Rocket::Start() {
                 // 这里需要创建一个新的，来保证其他用户能够连接服务器
                 // 总之，sq中应该总有一个任务，来接受用户连接
                 if (PrepareAccept(&client_addr, &addr_len) <= 0) {
-                    std::cout << "[Error] Fatal error: fail to prepare accept."
-                              << std::endl;
+                    //std::cout << "[Error] Fatal error: fail to prepare accept."
+                    Log("Start: fail to prepare accept.", 1);
                     exit(0);
                 }
                 // 还要增加一个读任务，用来处理刚刚连过来的用户的请求
                 if (PrepareRead(processed_bytes, _max_buffer_size) <= 0) {
-                    std::cout << "[Error] Error: fail to prepare read."
-                              << std::endl;
+                    //std::cout << "[Error] Error: fail to prepare read."
+                    Log("Start: fail to prepare read.", 1);
                     break;
                 }
                 break;
@@ -268,19 +302,19 @@ void Rocket::Start() {
                         Buffer shake = {new char[_max_buffer_size],
                                         (unsigned)_max_buffer_size};
                         if (RomeSocketGetHello(&shake, server_pk) != 1) {
-                            std::cerr << "Fail to generate shake package."
-                                      << std::endl;
+                            //std::cerr << "Fail to generate shake package.";
+                            Log("Start: Fail to generate shake package.", 2);
                         }
                         if (PrepareWrite(client_sock, shake.buffer,
                                          shake.length) <= 0) {
-                            std::cout << "Fail to prepare write task."
-                                      << std::endl;
+                            //std::cout << "Fail to prepare write task."
+                            Log("Start: Fail to prepare write task.", 1);
                         }
                         clients[client_sock] = client;
                         // 提交一个新的读任务
                         if (PrepareRead(client_sock, _max_buffer_size) <= 0) {
-                            std::cout << "Fail to prepare read task."
-                                      << std::endl;
+                            //std::cout << "Fail to prepare read task."
+                            Log("Start: Fail to prepare read task.", 1);
                         }
                         delete[] shake.buffer;
                         delete[] full_buffer.buffer;
@@ -308,7 +342,8 @@ void Rocket::Start() {
                 if ((unsigned char)flag != 0xFF) {
                     // 不是最后一组，因此提交一个新的读任务
                     if (PrepareRead(client_sock, _max_buffer_size) <= 0) {
-                        std::cout << "Fail to prepare read task." << std::endl;
+                        //std::cout << "Fail to prepare read task." << std::endl;
+                        Log("Start: Fail to prepare read task.", 1);
                     }
                 } else {
                     // 消息总块数
@@ -319,7 +354,8 @@ void Rocket::Start() {
                     // 查询私钥
                     auto client_iter = clients.find(client_sock);
                     if (client_iter == clients.end()) {
-                        std::cerr << "fail to get client info." << std::endl;
+                        //std::cerr << "fail to get client info." << std::endl;
+                        Log("Start: Fail to get client info.", 1);
                         delete[]full_buffer.buffer;
                         delete[] complete_cipher_buffer.buffer;
                         break;
@@ -364,13 +400,17 @@ Rocket::~Rocket() {
         close(_sock);
     }
     delete pool;
+    if (log_file) {
+        delete log_file;
+    }
 }
 
 int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     // 查找发送密钥
     auto client_iter = clients.find(client_id);
     if (client_iter == clients.end()) {
-        std::cout << "Fail to get user info" << std::endl;
+        //std::cout << "Fail to get user info" << std::endl;
+        Log("Write: Fail to get user info", 1);
         return -3;
     }
     struct Buffer plaintext = {buff, (unsigned)size};
@@ -382,7 +422,8 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     for (unsigned i = 0; i < length; ++i) {
         if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length,
                          i < length - 1) <= 0) {
-            std::cout << "Fail to prepare write" << std::endl;
+            //std::cout << "Fail to prepare write" << std::endl;
+            Log("Write: Fail to prepare write", 1);
             return -2;
         }
     }
@@ -395,7 +436,8 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
 
     if (more) {
         if (PrepareRead(client_id, _max_buffer_size) <= 0) {
-            std::cout << "Fail to prepare read more" << std::endl;
+            //std::cout << "Fail to prepare read more" << std::endl;
+            Log("Write: Fail to prepare read more", 1);
             return -2;
         }
     }
@@ -405,7 +447,18 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
 
 void Rocket::Pass(int client_id) {
     if (PrepareRead(client_id, _max_buffer_size) <= 0) {
-        std::cout << "Fail to prepare read more" << std::endl;
+        //std::cout << "Fail to prepare read more" << std::endl;
+        Log("Pass: Fail to prepare read more", 1);
     }
     Submit();
+}
+
+void Rocket::SetLogFile(std::string log, bool color) {
+    std::ofstream *ofs = new std::ofstream(log, std::ios::app);
+    if (!ofs->is_open()) {
+        std::cout << red << "[Warning]" << reset
+            << " Fail to open log file. All logs will be discarded." << std::endl;
+    }
+    log_file = ofs;
+    colored = color;
 }
