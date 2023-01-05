@@ -23,10 +23,12 @@ set (SOURCES
     source/layer.c
     source/client.c)
 
-## 静态库
-add_library(rocket STATIC ${SOURCES})
-## 动态库
-add_library(rocket_shared SHARED ${SOURCES})
+if (UNIX)
+    ## 静态库
+    add_library(rocket STATIC ${SOURCES})
+    ## 动态库
+    add_library(rocket_shared SHARED ${SOURCES})
+endif()
 ## 客户端库
 add_library(rocketc SHARED source/client.c source/layer.c)
 
