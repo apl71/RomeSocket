@@ -76,6 +76,15 @@ void go(int id, std::string server, int port) {
                       << "buffer is null pointer." << std::endl;
             continue;
         }
+        // 如果长度不同，也认为不同
+        if (buffer.length != data.length) {
+            std::lock_guard<std::mutex> lock(io_mutex);
+            std::cout << red << "[FAIL] " << reset
+                      << std::dec << "Test case " << i << " fail: "
+                      << "send " << data.length << " byte(s) but get "
+                      << buffer.length << " byte(s)." << std::endl;
+            continue;
+        }
         int result = Compare(data, buffer);
         if (result != -1) {
             io_mutex.lock();
@@ -83,11 +92,10 @@ void go(int id, std::string server, int port) {
                       << std::dec << "Test case " << i << " fail: "
                       << "Inconstant first occur at " << result << std::endl;
             std::cout << "length: " << data.length << " and " << buffer.length << std::endl;
-            // PrintHex((unsigned char *)data.buffer, data.length);
-            // PrintHex((unsigned char *)buffer.buffer, buffer.length);
             io_mutex.unlock();
         } else {
-            // std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass" << std::endl;
+            std::cout << green << "[PASS] " << reset << std::dec << "Test case " << i << " pass " << data.length << " byte(s) = "
+                      << buffer.length << std::endl;
         }
         delete[]buffer.buffer;
         delete[]data.buffer;
