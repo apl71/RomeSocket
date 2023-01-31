@@ -44,7 +44,7 @@ protected:
         RomeSocketClearBuffer(hello);
     }
 
-    void BadHelloTester() {;
+    void BadHelloTester() {
         Buffer bad_hellos[7];
         bad_hellos[0] = {nullptr, 0};
         bad_hellos[1] = {nullptr, 20};
@@ -57,7 +57,7 @@ protected:
         bad_hellos[6] = {new char[30], 30};
         memcpy(bad_hellos[6].buffer, hello, 7);
 
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 7; ++i) {
             int result = RomeSocketCheckHello(bad_hellos[i], (unsigned char *)pk);
             EXPECT_EQ(result, 0);
         }
