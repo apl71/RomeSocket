@@ -8,7 +8,7 @@
 #include "exception.hpp"
 #include "layer.h"
 
-Rocket::Rocket(uint16_t port) : _port(port) {
+Rocket::Rocket() {
     pool = new ThreadPool();
     if (sodium_init() < 0) {
         exit(0);
@@ -16,7 +16,17 @@ Rocket::Rocket(uint16_t port) : _port(port) {
     crypto_kx_keypair(server_pk, server_sk);
 }
 
-void Rocket::SetRingSize(size_t size) { _ring_size = size; }
+Rocket::Rocket(uint16_t port) : Rocket() {
+    _port = port;
+}
+
+void Rocket::SetPort(uint16_t port) {
+    _port = port;
+}
+
+void Rocket::SetRingSize(size_t size) {
+    _ring_size = size;
+}
 
 void Rocket::Initialize(int port) {
     // 初始化套接字

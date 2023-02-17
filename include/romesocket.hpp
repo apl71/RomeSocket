@@ -40,7 +40,7 @@ struct Client {
 class Rocket {
 private:
     int _sock = -1;
-    uint16_t _port;
+    uint16_t _port = 9999;
     // 缓冲区的最大长度
     size_t _max_buffer_size = BLOCK_LENGTH;
 
@@ -99,9 +99,14 @@ private:
     void Log(const std::string &data, int level);
 
 public:
+    // 初始化对象
+    Rocket();
     // 初始化对象，确定要监听的端口
     Rocket(uint16_t port);
     ~Rocket();
+
+    // 设置端口
+    void SetPort(uint16_t port);
 
     // 设置io_uring队列长度，在调用Start()前调用
     void SetRingSize(size_t size);
