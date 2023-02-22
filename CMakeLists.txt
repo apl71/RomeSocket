@@ -106,3 +106,20 @@ set(LAYER_TEST_SOURCES
     test/layer_test.cpp)
 add_executable(layer_test ${LAYER_TEST_SOURCES})
 target_link_libraries(layer_test PUBLIC sodium gtest gtest_main pthread)
+
+## random服务器
+set(RANDOM_SERVER_SOURCES
+    example/random_server.cpp
+	source/romesocket.cpp
+	source/layer.c
+	source/thread_pool.cpp)
+add_executable(random_server ${RANDOM_SERVER_SOURCES})
+target_link_libraries(random_server PUBLIC sodium pthread uring)
+
+## random客户端
+set(RANDOM_CLIENT_SOURCES
+    example/random_client.cpp
+	source/client.c
+	source/layer.c)
+add_executable(random_client ${RANDOM_CLIENT_SOURCES})
+target_link_libraries(random_client PUBLIC sodium pthread)
