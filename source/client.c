@@ -29,7 +29,10 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     inet_pton(AF_INET, server, &addr.sin_addr);
-    connect(sock, (struct sockaddr *)&addr, addr_size);
+    if (connect(sock, (struct sockaddr *)&addr, addr_size) == -1) {
+        printf("Fail to connect to server.");
+        return (struct Connection){-1, NULL, NULL};
+    }
     // 准备交换密钥
     unsigned char client_pk[crypto_kx_PUBLICKEYBYTES], client_sk[crypto_kx_SECRETKEYBYTES];
     unsigned char *client_rx = malloc(crypto_kx_SESSIONKEYBYTES);
