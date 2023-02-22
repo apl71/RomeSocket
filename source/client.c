@@ -130,11 +130,17 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
         plaintext = RomeSocketDecrypt(ciphertext, conn.rx);
     }
     // 清理缓存
-    free(ciphertext.buffer);
-    for (unsigned i = 0; i < count; ++i) {
-        free(temp_list[i].buffer);
+    if (ciphertext.buffer) {
+        free(ciphertext.buffer);
     }
-    free(temp_list);
+    for (unsigned i = 0; i < count; ++i) {
+        if (temp_list[i].buffer) {
+            free(temp_list[i].buffer);
+        }
+    }
+    if (temp_list) {
+        free(temp_list);
+    }
     return plaintext;
 }
 
