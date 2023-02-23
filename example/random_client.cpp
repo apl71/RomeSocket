@@ -1,32 +1,34 @@
 #include <sodium.h>
 #include <iostream>
+#include <cctype>
 #include "client.h"
 
-// 长度为0表示随机长度，范围是1-1024*1024字节
-// 需要手动清理返回的数组
-Buffer RandomBytes(unsigned length = 0) {
+std::string CryptoRandomString(unsigned length, const std::string &list) {
     if (sodium_init() < 0) {
-        return Buffer{nullptr, 0};
+        throw;
     }
-    // 随机数
-    while (length == 0) {
-        length = randombytes_uniform(1024 * 16);
+    std::string result;
+    for (unsigned i = 0; i < length; ++i) {
+        uint32_t index = randombytes_uniform(list.length());
+        char random_char = list[index];
+        result.push_back(random_char);
     }
-    char *data = new char[length];
-    randombytes_buf(data, length);
-    return {data, length};
+    return result;
 }
 
-bool CheckBuffer(Buffer a, Buffer b) {
-    if (a.length != b.length) {
-        return false;
+Buffer StringToBuffer(const std::string &str) {
+    return Buffer{(char *)str.c_str(), (unsigned)str.size() + 1};
+}
+
+std::string GetStringFromRemote(Connection conn, const std::string &data) {
+    RomeSocketSend(conn, StringToBuffer(data));
+    auto buff = RomeSocketReceive(conn, 16);
+    std::string response;
+    if (buff.buffer) {
+        response = std::string(buff.buffer);
     }
-    for (unsigned i = 0; i < a.length; ++i) {
-        if (a.buffer[i] != b.buffer[i]) {
-            return false;
-        }
-    }
-    return true;
+    RomeSocketClearBuffer(buff);
+    return response;
 }
 
 int main() {
@@ -34,31 +36,25 @@ int main() {
     Connection connection = RomeSocketConnect("localhost", 8000, 5);
     for (int i = 0; i < 1000; ++i) {
         // 随机生成串
-        Buffer data = RandomBytes();
-        if ((unsigned char)data.buffer[0] <= 0x0c) {
+        std::string data = CryptoRandomString(10000, "1234567890qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
+        if (isdigit(data[0])) {
             // 希望得到随机长度串
-            std::cout << "Send data length = " << data.length << ". Random response expected." << std::endl;
-            RomeSocketSend(connection, data);
-            Buffer response = RomeSocketReceive(connection, 16);
-            std::cout << "Get response length = " << response.length << std::endl;
-            RomeSocketClearBuffer(response);
-        } else if ((unsigned char)data.buffer[0] <= 0xf7) {
+            std::cout << "Send data length = " << data.length() << ". Random response expected." << std::endl;
+            std::string response = GetStringFromRemote(connection, data);
+            std::cout << "Get response length = " << response.length() << std::endl;
+        } else if (islower(data[0])) {
             // Pass
-            std::cout << "Send data length = " << data.length << ". No response expected." << std::endl;
-            RomeSocketSend(connection, data);
+            std::cout << "Send data length = " << data.length() << ". No response expected." << std::endl;
+            RomeSocketSend(connection, StringToBuffer(data));
         } else {
             // 希望得到同样串
-            std::cout << "Send data length = " << data.length << ". Identical response expected." << std::endl;
-            RomeSocketSend(connection, data);
-            Buffer response = RomeSocketReceive(connection, 16);
-            std::cout << "Get response length = " << response.length << std::endl;
-            if (CheckBuffer(data, response)) {
+            std::cout << "Send data length = " << data.length() << ". Identical response expected." << std::endl;
+            std::string response = GetStringFromRemote(connection, data);
+            if (response == data) {
                 std::cout << "OK." << std::endl;
             } else {
                 std::cout << "Error." << std::endl;
             }
-            RomeSocketClearBuffer(response);
         }
-        RomeSocketClearBuffer(data);
     }
 }

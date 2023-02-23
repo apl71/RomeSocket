@@ -4,9 +4,22 @@
 #include "exception.hpp"
 
 // 随机返回的服务器
-// 如果收到的消息串首字节为0x00-0x0c，响应随机长度串
-// 如果首字节为0x0d-0xf7，则Pass
-// 如果首字节为0xf8-0xff，则返回相同消息
+// 如果收到的消息串首字符为0-9，响应随机长度串
+// 如果首字符为a-z，则Pass
+// 如果首字符为A-Z，则返回相同消息
+
+std::string CryptoRandomString(unsigned length, const std::string &list) {
+    if (sodium_init() < 0) {
+        throw;
+    }
+    std::string result;
+    for (unsigned i = 0; i < length; ++i) {
+        uint32_t index = randombytes_uniform(list.length());
+        char random_char = list[index];
+        result.push_back(random_char);
+    }
+    return result;
+}
 
 // 长度为0表示随机长度，范围是1-1024*1024字节
 // 需要手动清理返回的数组
@@ -36,12 +49,11 @@ public:
 
     void OnRead(char *buff, size_t size, int client_id) override {
         // 将开始时间记为首次读取用户输入的时间
-        if ((unsigned char)buff[0] <= 0x0c) {
+        if (isdigit(buff[0])) {
             // 返回随机长度
-            Buffer buffer = RandomBytes();
-            Write(buffer.buffer, buffer.length, client_id, true);
-            delete[]buffer.buffer;
-        } else if ((unsigned char)buff[0] <= 0xf7) {
+            std::string data = CryptoRandomString(10000, "1234567890qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM");
+            Write((char *)data.c_str(), data.length() + 1, client_id, true);
+        } else if (islower(buff[0])) {
             // Pass
             Pass(client_id);
         } else {
