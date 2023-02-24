@@ -125,7 +125,7 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
             break;
         }
     }
-    struct Buffer ciphertext, plaintext = {NULL, 0};
+    struct Buffer ciphertext = {NULL, 0}, plaintext = {NULL, 0};
     if (!timeout) {
         // 拼接
         ciphertext = RomeSocketConcatenate(temp_list, count);
