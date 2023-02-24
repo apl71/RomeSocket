@@ -12,7 +12,7 @@
 
 struct Connection RomeSocketConnect(const char *server, const unsigned port, time_t timeout) {
     if (sodium_init() < 0) {
-        printf("Fail to initialize libsodium\n");
+        printf("Fail to initialize libsodium.\n");
         exit(0);
     }
     
@@ -21,7 +21,9 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     struct timeval tv;
     tv.tv_sec = timeout;
     tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
+        printf("Fail to set SO_RCVTIMEO.\n");
+    }
     // 绑定地址并连接
     struct sockaddr_in addr;
     size_t addr_size = sizeof(struct sockaddr_in);
@@ -30,7 +32,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     addr.sin_port = htons(port);
     inet_pton(AF_INET, server, &addr.sin_addr);
     if (connect(sock, (struct sockaddr *)&addr, addr_size) == -1) {
-        printf("Fail to connect to server.");
+        printf("Fail to connect to server.\n");
         return (struct Connection){-1, NULL, NULL};
     }
     // 准备交换密钥
@@ -45,7 +47,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     char temp[BLOCK_LENGTH];
     struct Buffer hello = {temp, BLOCK_LENGTH};
     if (RomeSocketGetHello(&hello, client_pk) != 1) {
-        printf("Fail to generate hello package.");
+        printf("Fail to generate hello package.\n");
         exit(1);
     }
     RomeSocketSendAll(sock, hello.buffer, hello.length);
@@ -56,7 +58,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
         return (struct Connection){-1, NULL, NULL};
     }
     if (RomeSocketCheckHello((struct Buffer){shake, BLOCK_LENGTH}, server_pk) != 1) {
-        printf("Bad shake package.");
+        printf("Bad shake package.\n");
         return (struct Connection){-1, NULL, NULL};
     }
     // 计算密钥
