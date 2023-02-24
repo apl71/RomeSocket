@@ -24,6 +24,9 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
         printf("Fail to set SO_RCVTIMEO.\n");
     }
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv) == -1) {
+        printf("Fail to set SO_SNDTIMEO.\n");
+    }
     // 绑定地址并连接
     struct sockaddr_in addr;
     size_t addr_size = sizeof(struct sockaddr_in);
