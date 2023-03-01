@@ -1,6 +1,7 @@
 #include <sodium.h>
 #include <iostream>
 #include <cctype>
+#include <unistd.h>
 #include "client.h"
 
 std::string CryptoRandomString(unsigned length, const std::string &list) {
@@ -56,5 +57,7 @@ int main() {
                 std::cout << "Error." << std::endl;
             }
         }
+        std::cout << "Sleep for " << i << " seconds." << std::endl;
+        sleep(i);
     }
 }
