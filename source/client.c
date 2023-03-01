@@ -40,8 +40,8 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     }
     // 准备交换密钥
     unsigned char client_pk[crypto_kx_PUBLICKEYBYTES], client_sk[crypto_kx_SECRETKEYBYTES];
-    unsigned char *client_rx = malloc(crypto_kx_SESSIONKEYBYTES);
-    unsigned char *client_tx = malloc(crypto_kx_SESSIONKEYBYTES);
+    // unsigned char *client_rx = malloc(crypto_kx_SESSIONKEYBYTES);
+    // unsigned char *client_tx = malloc(crypto_kx_SESSIONKEYBYTES);
     crypto_kx_keypair(client_pk, client_sk);
 
     // 接收来自服务器的公钥
@@ -65,12 +65,13 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
         return (struct Connection){-1, NULL, NULL};
     }
     // 计算密钥
-    if (crypto_kx_client_session_keys(client_rx, client_tx,
+    struct Connection conn;
+    conn.sock = sock;
+    if (crypto_kx_client_session_keys(conn.rx, conn.tx,
                                     client_pk, client_sk, server_pk) != 0) {
         printf("Client: Suspicious server key, abort.\n");
         return (struct Connection){-1, NULL, NULL};
     }
-    struct Connection conn = {sock, client_rx, client_tx};
     return conn;
 }
 
@@ -154,6 +155,4 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
 
 void RomeSocketClose(struct Connection *conn) {
     close(conn->sock);
-    free(conn->rx);
-    free(conn->tx);
 }

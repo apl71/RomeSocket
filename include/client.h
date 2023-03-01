@@ -9,8 +9,8 @@ extern "C" {
 
 struct Connection {
     int sock;
-    unsigned char *rx;
-    unsigned char *tx;
+    unsigned char rx[crypto_kx_SESSIONKEYBYTES];
+    unsigned char tx[crypto_kx_SESSIONKEYBYTES];
 };
 
 struct Connection RomeSocketConnect(const char *server, const unsigned port, time_t timeout);
