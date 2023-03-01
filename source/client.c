@@ -94,7 +94,7 @@ void RomeSocketSend(struct Connection sock, struct Buffer send_buffer) {
 void RomeSocketSendAll(int sock, char *send_buff, size_t length) {
     size_t sent = 0, remain = length;
     while (remain > 0) {
-        size_t size = send(sock, send_buff + sent, remain, 0);
+        long long size = send(sock, send_buff + sent, remain, 0);
         sent += size;
         remain -= size;
     }
@@ -103,8 +103,8 @@ void RomeSocketSendAll(int sock, char *send_buff, size_t length) {
 int RomeSocketReceiveAll(int sock, char *buffer) {
     size_t got = 0, remain = BLOCK_LENGTH;
     while (remain > 0) {
-        size_t size = recv(sock, buffer + got, remain, 0);
-        if (size == 0) {
+        long long size = recv(sock, buffer + got, remain, 0);
+        if (size <= 0) {
             break;
         }
         got += size;
