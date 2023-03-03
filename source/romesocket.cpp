@@ -245,6 +245,8 @@ void Rocket::Start() {
             continue;
         }
 
+        std::cout << "Get cqe " << reinterpret_cast<Request *>(cqe->user_data)->type << std::endl;
+
         // 删除过期的客户
         auto it = clients.begin();
         while (it != clients.end()) {
