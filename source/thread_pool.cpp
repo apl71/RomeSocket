@@ -17,7 +17,7 @@ ThreadPool::ThreadPool(size_t min_threads, size_t max_threads)
     {
         min_threads = max_threads = std::thread::hardware_concurrency();
     }
-    min_thread_cnt = min_threads;
+    min_thread_cnt = (min_threads <= 1 ? 2 : min_threads);
     max_thread_cnt = max_threads;
     threads.reserve(min_threads);
     for (size_t i = 0; i < min_threads; ++i)
