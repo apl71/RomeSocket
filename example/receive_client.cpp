@@ -5,6 +5,7 @@
 int main() {
     auto connection = RomeSocketConnect("localhost", 8000, 15);
     RomeSocketSend(connection, {"hello", 6});
+    int count = 0;
     while (true) {
         auto recv_buf = RomeSocketReceive(connection, 16);
         if (!recv_buf.buffer) {
@@ -15,7 +16,7 @@ int main() {
             std::cout << "done" << std::endl;
             break;
         }
-        std::cout << "Get " << (unsigned)recv_buf.buffer[0] << std::endl;
+        std::cout << "Get " << count++ << std::endl;
         RomeSocketClearBuffer(recv_buf);
     }
     RomeSocketClose(&connection);
