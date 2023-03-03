@@ -30,7 +30,7 @@ public:
         int k = 1000, result, count = 0;
         char send_buf[8000];
         for (int i = 0; i < k; ++i) {
-            if (count++ % 32 == 0) {
+            if (count++ % 8 == 0) {
                 sleep(2);
             }
             send_buf[0] = i;
@@ -38,6 +38,7 @@ public:
             result = Write(send_buf, 8000, client_id, false);
             if (result < 0) {
                 std::cout << "Error on writing, code = " << result << ", i = " << i << std::endl;
+                return;
             }
         }
         strcpy(send_buf, "done");
@@ -49,7 +50,7 @@ public:
 };
 
 int main(int argc, char **argv) {
-    int ring_size = 32;
+    int ring_size = 16;
     if (argc > 1) {
         ring_size = std::atoi(argv[1]);
     }
