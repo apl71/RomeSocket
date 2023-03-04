@@ -1,14 +1,27 @@
 #ifndef ROMESOCKET_CLIENT_H_
 #define ROMESOCKET_CLIENT_H_
 
+#ifdef __WIN32__
+#include <winsock2.h>
+#elif __linux__
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 #include "layer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#ifdef __linux__
+#define SOCKET int
+#define SOCKET_ERROR -1
+#define IPPROTO_TCP 0
+#endif
+
 struct Connection {
-    int sock;
+    SOCKET sock;
     unsigned char rx[crypto_kx_SESSIONKEYBYTES];
     unsigned char tx[crypto_kx_SESSIONKEYBYTES];
 };

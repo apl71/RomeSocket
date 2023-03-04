@@ -1,7 +1,4 @@
 #include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
@@ -15,8 +12,23 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
         printf("Fail to initialize libsodium.\n");
         exit(0);
     }
+
+    #ifdef __WIN32__
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0) {
+        printf("WSAStartup() fails.\n");
+        return (struct Connection){SOCKET_ERROR, NULL, NULL};
+    }
+    #endif
     
-    int sock = socket(PF_INET, SOCK_STREAM, 0);
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    #ifdef __WIN32__
+    if (sock == INVALID_SOCKET) {
+        printf("socket() fails.\n");
+        return (struct Connection){SOCKET_ERROR, NULL, NULL};
+    }
+    #endif
     // 设置超时时间
     struct timeval tv;
     tv.tv_sec = timeout;
@@ -33,10 +45,17 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     memset(&addr, 0, addr_size);
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
+    #ifdef __WIN32__
+    addr.sin_addr.s_addr = inet_addr(server);
+    #elif __linux__
     inet_pton(AF_INET, server, &addr.sin_addr);
-    if (connect(sock, (struct sockaddr *)&addr, addr_size) == -1) {
+    #endif
+    if (connect(sock, (struct sockaddr *)&addr, addr_size) == SOCKET_ERROR) {
         printf("Fail to connect to server.\n");
-        return (struct Connection){-1, NULL, NULL};
+        #ifdef __WIN32__
+        printf("%d", WSAGetLastError());
+        #endif
+        return (struct Connection){SOCKET_ERROR, NULL, NULL};
     }
     // 准备交换密钥
     unsigned char client_pk[crypto_kx_PUBLICKEYBYTES], client_sk[crypto_kx_SECRETKEYBYTES];
@@ -154,5 +173,12 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
 }
 
 void RomeSocketClose(struct Connection *conn) {
+    #ifdef __WIN32__
+    //关闭套接字
+    closesocket(conn->sock);
+    WSACleanup();
+    //终止使用 DLL
+    #elif __linux__
     close(conn->sock);
+    #endif
 }

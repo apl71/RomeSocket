@@ -46,12 +46,6 @@ set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h;include
 install(TARGETS rocket rocket_shared rocketc
 				LIBRARY DESTINATION /usr/local/lib
 				PUBLIC_HEADER DESTINATION /usr/local/include/romesocket)
-# if (UNIX)
-# 	install(TARGETS rocket rocket_shared DESTINATION /usr/lib)
-# elseif (WIN32)
-# 	target_link_libraries(rocket -lws2_32)
-# 	install(TARGETS rocket rocket_shared DESTINATION C:\\Windows\\System32)
-# endif()
 
 ## 测试程序编译
 set (THREAD_POOL_TEST_1_SOURCES
@@ -95,10 +89,6 @@ target_link_libraries(echo_toy PUBLIC sodium)
 ## key exchange测试
 add_executable(key_exchange example/key_exchange.c)
 target_link_libraries(key_exchange PUBLIC sodium)
-
-## 客户端
-set (CLIENT_SOURCES
-    source/client.c)
 
 ## 测试
 set(LAYER_TEST_SOURCES

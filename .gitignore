@@ -40,3 +40,6 @@ build/release/*
 .vscode/*
 
 *.json
+
+build-win32/*
+!build-win32/.gitkeep
