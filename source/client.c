@@ -30,6 +30,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     }
     #endif
     // 设置超时时间
+    #ifdef __linux__
     struct timeval tv;
     tv.tv_sec = timeout;
     tv.tv_usec = 0;
@@ -39,6 +40,16 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv) == -1) {
         printf("Fail to set SO_SNDTIMEO.\n");
     }
+    #elif __WIN32__
+    // windows平台接受一个int参数，单位为毫秒
+    int tv = timeout * 1000;
+    if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) == -1) {
+        printf("Fail to set SO_RCVTIMEO.\n");
+    }
+    if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv) == -1) {
+        printf("Fail to set SO_SNDTIMEO.\n");
+    }
+    #endif
     // 绑定地址并连接
     struct sockaddr_in addr;
     size_t addr_size = sizeof(struct sockaddr_in);
@@ -122,8 +133,12 @@ void RomeSocketSendAll(int sock, char *send_buff, size_t length) {
 int RomeSocketReceiveAll(int sock, char *buffer) {
     size_t got = 0, remain = BLOCK_LENGTH;
     while (remain > 0) {
-        long long size = recv(sock, buffer + got, remain, 0);
+        int size = recv(sock, buffer + got, remain, 0);
         if (size <= 0) {
+            printf("recv return  %d", size);
+            #ifdef __WIN32__
+            printf("last error: %d", WSAGetLastError());
+            #endif
             break;
         }
         got += size;
@@ -143,6 +158,7 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
         int got = RomeSocketReceiveAll(conn.sock, temp_list[count].buffer);
         if (got != BLOCK_LENGTH) {
             timeout = 1;
+            printf("got != BLOCK_LENGTH, got = %d", got);
             break;
         }
         temp_list[count].length = BLOCK_LENGTH;
