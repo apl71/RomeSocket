@@ -44,6 +44,7 @@ set_target_properties(rocket PROPERTIES PUBLIC_HEADER "include/romesocket.hpp;in
 set_target_properties(rocketc PROPERTIES PUBLIC_HEADER "include/client.h;include/layer.h")
 
 install(TARGETS rocket rocket_shared rocketc
+				ARCHIVE DESTINATION /usr/local/lib
 				LIBRARY DESTINATION /usr/local/lib
 				PUBLIC_HEADER DESTINATION /usr/local/include/romesocket)
 
