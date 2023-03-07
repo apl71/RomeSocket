@@ -17,7 +17,6 @@ extern "C" {
 #ifdef __linux__
 #define SOCKET int
 #define SOCKET_ERROR -1
-#define IPPROTO_TCP 0
 #endif
 
 struct Connection {
