@@ -41,7 +41,7 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
             struct Buffer null = {NULL, 0};
             return null;
         }
-        block_length[i] = ((unsigned)(buffers[i].buffer[1] << 8)) |
+        block_length[i] = ((unsigned)(buffers[i].buffer[1]) << 8) |
                           ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
         if (block_length[i] >= 0xFFFF) {
             printf("RomeSocketConcatenate: Bad buffer length header: %x and %x = %u\n", buffers[i].buffer[1], buffers[i].buffer[2], block_length[i]);
@@ -98,7 +98,7 @@ struct Buffer RomeSocketDecrypt(struct Buffer buffer, unsigned char *rx) {
         return result;
     } else {
         // MAC认证失败
-        printf("RomeSocketDecrypt: MAC authentication fail");
+        printf("RomeSocketDecrypt: MAC authentication fail.\n");
         struct Buffer null = {NULL, 0};
         return null;
     }
