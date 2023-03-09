@@ -41,14 +41,15 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
             struct Buffer null = {NULL, 0};
             return null;
         }
-        block_length[i] = ((unsigned)(buffers[i].buffer[1]) << 8) |
+        block_length[i] = (((unsigned)(buffers[i].buffer[1]) << 8) & 0xFF00) |
                           ((unsigned)(buffers[i].buffer[2]) & 0x00FF);
-        if (block_length[i] >= 0xFFFF) {
-            printf("RomeSocketConcatenate: Bad buffer length header: %x and %x = %u\n", buffers[i].buffer[1], buffers[i].buffer[2], block_length[i]);
+        if (block_length[i] >= BLOCK_LENGTH) {
+            printf("RomeSocketConcatenate: Bad buffer length header: %02X %02X %02X = %u\n", buffers[i].buffer[0] & 0xff, buffers[i].buffer[1] & 0xff, buffers[i].buffer[2] & 0xff, block_length[i]);
             struct Buffer null = {NULL, 0};
             return null;
         }
         total_length += block_length[i];
+        //printf("\tblock_length[%d] = %u\n", i, block_length[i]);
     }
     // 申请内存
     char *complete = (char *)malloc(total_length);
@@ -67,6 +68,7 @@ struct Buffer RomeSocketConcatenate(struct Buffer *buffers, unsigned count) {
     // 返回结果
     free(block_length);
     struct Buffer result = {complete, total_length};
+    //printf("Concatenating complete, total_length = %u.\n", total_length);
     return result;
 }
 
@@ -132,6 +134,7 @@ struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length) {
     if (full_block.length % (BLOCK_LENGTH - HEADER_LENGTH) != 0) {
         ++block_num;
     }
+    //printf("Full block = %u, %u blocks needed.\n", full_block.length, block_num);
     // 生成分块
     struct Buffer *buffers = malloc(sizeof(struct Buffer) * block_num);
     unsigned current = 0, remain = full_block.length;
@@ -150,9 +153,11 @@ struct Buffer *RomeSocketSplit(struct Buffer full_block, unsigned *length) {
         } else {
             buffers[i].buffer[0] = i;
         }
-        buffers[i].buffer[1] = current_length >> 8;
-        buffers[i].buffer[2] = current_length;
+        buffers[i].buffer[1] = (current_length >> 8) & 0xff;
+        buffers[i].buffer[2] = current_length & 0xff;
         buffers[i].length = BLOCK_LENGTH;
+        //printf("\tSub block %u length = %u\n", i, current_length);
+        //printf("\tSub block %u header: %02X %02X %02X\n", i, buffers[i].buffer[0] & 0xff, buffers[i].buffer[1] & 0xff, buffers[i].buffer[2] & 0xff);
     }
     // 返回数据
     *length = block_num;

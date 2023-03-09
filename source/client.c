@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <sodium.h>
 #include "client.h"
+#ifdef __linux__
+#include "errno.h"
+#endif
 
 #define MAX_CONNECTION 2000
 
@@ -124,10 +127,24 @@ void RomeSocketSend(struct Connection sock, struct Buffer send_buffer) {
 void RomeSocketSendAll(int sock, char *send_buff, size_t length) {
     size_t sent = 0, remain = length;
     while (remain > 0) {
-        long long size = send(sock, send_buff + sent, remain, 0);
+        int size = send(sock, send_buff + sent, remain, 0);
+        if (size <= 0) {
+            printf("send return  %d", size);
+            #ifdef __WIN32__
+            printf("last error: %d", WSAGetLastError());
+            #elif __linux__
+            printf("errno: %d", errno);
+            #endif
+            break;
+        }
         sent += size;
         remain -= size;
     }
+    // printf("Send ");
+    // for (size_t i = 0; i < length; ++i) {
+    //     printf("%2X ", send_buff[i] & 0xff);
+    // }
+    // printf("\n");
 }
 
 int RomeSocketReceiveAll(int sock, char *buffer) {
@@ -143,7 +160,14 @@ int RomeSocketReceiveAll(int sock, char *buffer) {
         }
         got += size;
         remain -= size;
+        //printf("Receive %u bytes, remain %u bytes.\n", size, remain);
     }
+    // printf("finish. got %u bytes.\n", got);
+    // printf("Receive ");
+    // for (size_t i = 0; i < BLOCK_LENGTH; ++i) {
+    //     printf("%2X ", buffer[i] & 0xff);
+    // }
+    // printf("\n");
     return got;
 }
 
@@ -161,6 +185,7 @@ struct Buffer RomeSocketReceive(struct Connection conn, unsigned max_block) {
             printf("got != BLOCK_LENGTH, got = %d", got);
             break;
         }
+        //printf("Got block, header = %2X, length = %u\n", temp_list[count].buffer[0] & 0xff, got);
         temp_list[count].length = BLOCK_LENGTH;
         if ((unsigned char)temp_list[count++].buffer[0] == 0xFF) {
             break;
