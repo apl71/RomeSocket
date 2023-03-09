@@ -11,7 +11,6 @@ public:
     void OnRead(char *buff, size_t size, int client_id) override {
         if (buff[0] == 'u') {
             // 上传数据测试，不需要做任何事
-            std::cout << "Pass" << std::endl;
             Pass(client_id);
         } else if (buff[0] == 'd') {
             int data_length = 8000;
