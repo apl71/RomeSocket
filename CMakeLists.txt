@@ -131,3 +131,20 @@ set(RECEIVE_CLIENT_SOURCES
 	source/layer.c)
 add_executable(receive_client ${RECEIVE_CLIENT_SOURCES})
 target_link_libraries(receive_client PUBLIC sodium pthread)
+
+## benchmark服务器
+set(BENCHMARK_SERVER_SOURCES
+    example/benchmark_server.cpp
+	source/romesocket.cpp
+	source/layer.c
+	source/thread_pool.cpp)
+add_executable(benchmark_server ${BENCHMARK_SERVER_SOURCES})
+target_link_libraries(benchmark_server PUBLIC sodium pthread uring)
+
+## benchmark客户端
+set(BENCHMARK_CLIENT_SOURCES
+    example/benchmark_client.cpp
+	source/client.c
+	source/layer.c)
+add_executable(benchmark_client ${BENCHMARK_CLIENT_SOURCES})
+target_link_libraries(benchmark_client PUBLIC sodium pthread)
