@@ -127,8 +127,7 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size,
         _ring_mutex.unlock();
         return -1;
     }
-    io_uring_prep_write(write_sqe, client_sock, write_buff, _max_buffer_size,
-                        0);
+    io_uring_prep_send(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
     io_uring_sqe_set_data(write_sqe, req);
     if (link) {
         write_sqe->flags |= IOSQE_IO_LINK;
@@ -295,11 +294,9 @@ void Rocket::Start() {
                 // 读取到了输入
                 // 解析cqe中的数据
                 int client_sock = cqe_request->client_sock;
-                char *buffer = new char[_max_buffer_size];
-                memcpy(buffer, cqe_request->buff, _max_buffer_size);
                 // 检查是否有完整buffer可用
                 Buffer full_buffer =
-                    CheckFullBlock(client_sock, buffer, processed_bytes);
+                    CheckFullBlock(client_sock, cqe_request->buff, processed_bytes);
                 if (!full_buffer.buffer) {
                     break;
                 }
@@ -376,7 +373,7 @@ void Rocket::Start() {
                         //std::cerr << "fail to get client info." << std::endl;
                         Log("Start: Fail to get client info.", 1);
                         delete[]full_buffer.buffer;
-                        delete[] complete_cipher_buffer.buffer;
+                        delete[]complete_cipher_buffer.buffer;
                         break;
                     }
                     unsigned char *server_rx = client_iter->second.rx;
@@ -392,13 +389,16 @@ void Rocket::Start() {
                     });
                     // 清除缓存的消息块
                     for (auto &i : iter->second) {
-                        delete[] i.buffer;
+                        delete[]i.buffer;
                     }
                     iter->second.clear();
                 }
                 break;
             }
             case REQUEST_TYPE_WRITE:
+                if (processed_bytes != _max_buffer_size) {
+                    std::cout << "Write event finished. processed bytes = " << processed_bytes << std::endl;
+                }
                 break;
         }
         auto iter = clients.find(cqe_request->client_sock);
@@ -424,6 +424,22 @@ Rocket::~Rocket() {
     }
 }
 
+void SendAll(int sock, char *send_buff, size_t length) {
+    size_t sent = 0, remain = length;
+    while (remain > 0) {
+        int size = send(sock, send_buff + sent, remain, 0);
+        if (size <= 0) {
+            printf("recv return  %d", size);
+            #ifdef __WIN32__
+            printf("last error: %d", WSAGetLastError());
+            #endif
+            break;
+        }
+        sent += size;
+        remain -= size;
+    }
+}
+
 int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     // 查找发送密钥
     auto client_iter = clients.find(client_id);
@@ -439,12 +455,17 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     struct Buffer *buffers = RomeSocketSplit(ciphertext, &length);
     // 逐块发送
     for (unsigned i = 0; i < length; ++i) {
-        if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length,
-                         i < length - 1) <= 0) {
-            //std::cout << "Fail to prepare write" << std::endl;
-            Log("Write: Fail to prepare write", 1);
-            return -2;
-        }
+        // if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length,
+        //                  i < length - 1) <= 0) {
+        //     Log("Write: Fail to prepare write", 1);
+        //     return -2;
+        // }
+        SendAll(client_id, buffers[i].buffer, buffers[i].length);
+        // printf("Prepare write ");
+        // for (size_t j = 0; j < buffers[i].length; ++j) {
+        //     printf("%2X ", buffers[i].buffer[j] & 0xff);
+        // }
+        // printf("\n");
     }
     // 清理资源
     free(ciphertext.buffer);
@@ -466,7 +487,7 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
 
 void Rocket::Pass(int client_id) {
     if (PrepareRead(client_id, _max_buffer_size) <= 0) {
-        //std::cout << "Fail to prepare read more" << std::endl;
+        std::cout << "Fail to prepare read more" << std::endl;
         Log("Pass: Fail to prepare read more", 1);
     }
     Submit();
