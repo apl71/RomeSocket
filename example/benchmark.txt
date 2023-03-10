@@ -1,0 +1,40 @@
+Start uploading test.
+Start uploading test.
+Start uploading test.
+Start uploading test.
+Start download test.
+Start download test.
+Start download test.
+Start download test.
+Time: 2.12973 seconds.
+Average speed: 358.233115MBps
+Downloading test ends.
+
+Time: 2.1513 seconds.
+Average speed: 354.641620MBps
+Downloading test ends.
+
+Time: 2.1885 seconds.
+Average speed: 348.612478MBps
+Downloading test ends.
+
+Time: 2.21428 seconds.
+Average speed: 344.554813MBps
+Downloading test ends.
+
+Time: 8.31882 seconds.
+Average speed: 91.712494MBps
+Uploading test ends.
+
+Time: 8.3248 seconds.
+Average speed: 91.646625MBps
+Uploading test ends.
+
+Time: 8.32922 seconds.
+Average speed: 91.597969MBps
+Uploading test ends.
+
+Time: 8.33086 seconds.
+Average speed: 91.579860MBps
+Uploading test ends.
+
