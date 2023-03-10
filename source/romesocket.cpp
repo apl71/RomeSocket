@@ -396,7 +396,7 @@ void Rocket::Start() {
                 break;
             }
             case REQUEST_TYPE_WRITE:
-                if (processed_bytes != _max_buffer_size) {
+                if (processed_bytes != (int)_max_buffer_size) {
                     std::cout << "Write event finished. processed bytes = " << processed_bytes << std::endl;
                 }
                 break;

@@ -4,7 +4,8 @@
 
 int main() {
     auto connection = RomeSocketConnect("localhost", 8000, 15);
-    RomeSocketSend(connection, {"hello", 6});
+    char hello[] = "hello";
+    RomeSocketSend(connection, {hello, 6});
     int count = 0;
     while (true) {
         auto recv_buf = RomeSocketReceive(connection, 16);

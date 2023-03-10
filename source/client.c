@@ -69,7 +69,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
         #ifdef __WIN32__
         printf("%d", WSAGetLastError());
         #endif
-        return (struct Connection){SOCKET_ERROR, NULL, NULL};
+        return (struct Connection){SOCKET_ERROR};
     }
     // 准备交换密钥
     unsigned char client_pk[crypto_kx_PUBLICKEYBYTES], client_sk[crypto_kx_SECRETKEYBYTES];
@@ -91,11 +91,11 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     char shake[BLOCK_LENGTH];
     int got = RomeSocketReceiveAll(sock, shake);
     if (got != BLOCK_LENGTH) {
-        return (struct Connection){-1, NULL, NULL};
+        return (struct Connection){-1};
     }
     if (RomeSocketCheckHello((struct Buffer){shake, BLOCK_LENGTH}, server_pk) != 1) {
         printf("Bad shake package.\n");
-        return (struct Connection){-1, NULL, NULL};
+        return (struct Connection){-1};
     }
     // 计算密钥
     struct Connection conn;
@@ -103,7 +103,7 @@ struct Connection RomeSocketConnect(const char *server, const unsigned port, tim
     if (crypto_kx_client_session_keys(conn.rx, conn.tx,
                                     client_pk, client_sk, server_pk) != 0) {
         printf("Client: Suspicious server key, abort.\n");
-        return (struct Connection){-1, NULL, NULL};
+        return (struct Connection){-1};
     }
     return conn;
 }
