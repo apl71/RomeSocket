@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <iostream>
+#include <algorithm>
 #include "client.h"
 #include "exception.hpp"
 #include "layer.h"
