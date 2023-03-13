@@ -1,0 +1,2 @@
+timeout可以由用户设定
+新增内存池以及register buffer，减少内存拷贝
