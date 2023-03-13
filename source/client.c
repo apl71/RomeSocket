@@ -152,9 +152,11 @@ int RomeSocketReceiveAll(int sock, char *buffer) {
     while (remain > 0) {
         int size = recv(sock, buffer + got, remain, 0);
         if (size <= 0) {
-            printf("recv return  %d", size);
+            printf("recv return  %d, ", size);
             #ifdef __WIN32__
-            printf("last error: %d", WSAGetLastError());
+            printf("last error: %d\n", WSAGetLastError());
+            #elif __linux__
+            printf("last error: %d\n", errno);
             #endif
             break;
         }
