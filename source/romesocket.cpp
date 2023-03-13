@@ -430,9 +430,10 @@ void SendAll(int sock, char *send_buff, size_t length) {
     while (remain > 0) {
         int size = send(sock, send_buff + sent, remain, 0);
         if (size <= 0) {
-            printf("recv return  %d", size);
+            printf("send return  %d\n", size);
+            printf("last error: %d\n", errno);
             #ifdef __WIN32__
-            printf("last error: %d", WSAGetLastError());
+            printf("last error: %d\n", WSAGetLastError());
             #endif
             break;
         }
@@ -448,6 +449,9 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         //std::cout << "Fail to get user info" << std::endl;
         Log("Write: Fail to get user info", 1);
         return -3;
+    } else {
+        // 更新最后通讯时间
+        client_iter->second.last_time = time(nullptr);
     }
     struct Buffer plaintext = {buff, (unsigned)size};
     struct Buffer ciphertext =
@@ -461,6 +465,9 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
         //     Log("Write: Fail to prepare write", 1);
         //     return -2;
         // }
+        if (buffers[i].length == 0) {
+            std::cout << "Warning: Sending empty message." << std::endl;
+        }
         SendAll(client_id, buffers[i].buffer, buffers[i].length);
         // printf("Prepare write ");
         // for (size_t j = 0; j < buffers[i].length; ++j) {
