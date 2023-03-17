@@ -43,3 +43,4 @@ build/release/*
 
 build-win32/*
 !build-win32/.gitkeep
+!build-win32/CMakeLists.txt
