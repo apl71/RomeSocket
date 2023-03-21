@@ -29,6 +29,10 @@ void Rocket::SetRingSize(size_t size) {
     _ring_size = size;
 }
 
+void Rocket::SetRegisterBuffer(bool on) {
+    register_buffer = on;
+}
+
 void Rocket::Initialize(int port) {
     // 初始化套接字
     _sock = socket(PF_INET, SOCK_STREAM, 0);
@@ -101,25 +105,35 @@ int Rocket::PrepareRead(int client_sock, int size) {
         _ring_mutex.unlock();
         return -1;
     }
-    char *read_buff = new char[_max_buffer_size];
-    memset(read_buff, 0, _max_buffer_size);
-    io_uring_prep_recv(read_sqe, client_sock, read_buff, size, 0);
+    char *read_buff = nullptr;
 
     Request *req = new Request;
-    req->buff = read_buff;
+    req->buff = nullptr;
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_READ;
+    
+    if (register_buffer) {
+        int index = GetValidIndex();
+        io_uring_prep_read_fixed(read_sqe, client_sock, piov[index].iov_base, piov[index].iov_len, 0, index);
+        req->buffer_index = index;
+    } else {
+        read_buff =  new char[_max_buffer_size];
+        memset(read_buff, 0, _max_buffer_size);
+        req->buff = read_buff;
+        io_uring_prep_recv(read_sqe, client_sock, read_buff, size, 0);
+    }
+
     io_uring_sqe_set_data(read_sqe, req);
+
     _ring_mutex.unlock();
     return 1;
 }
 
 int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size,
                          bool link) {
-    char *write_buff = new char[_max_buffer_size];
-    memcpy(write_buff, to_write, size);
+    char *write_buff = nullptr;
     Request *req = new Request;
-    req->buff = write_buff;
+    req->buff = nullptr;
     req->client_sock = client_sock;
     req->type = REQUEST_TYPE_WRITE;
     _ring_mutex.lock();
@@ -128,7 +142,16 @@ int Rocket::PrepareWrite(int client_sock, char *to_write, size_t size,
         _ring_mutex.unlock();
         return -1;
     }
-    io_uring_prep_send(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
+    if (register_buffer) {
+        int index = GetValidIndex();
+        memcpy(piov[index].iov_base, to_write, size);
+        io_uring_prep_write_fixed(write_sqe, client_sock, piov[index].iov_base, piov[index].iov_len, 0, index);
+    } else {
+        write_buff = new char[_max_buffer_size];
+        memcpy(write_buff, to_write, size);
+        req->buff = write_buff;
+        io_uring_prep_send(write_sqe, client_sock, write_buff, _max_buffer_size, 0);
+    }
     io_uring_sqe_set_data(write_sqe, req);
     if (link) {
         write_sqe->flags |= IOSQE_IO_LINK;
@@ -214,11 +237,32 @@ void Rocket::Log(const std::string &data, int level) {
     }
 }
 
+int Rocket::GetValidIndex() {
+    return register_buffer_index++ % _ring_size;
+}
+
 void Rocket::Start() {
     // 初始化套接字、IO Uring等资源
     Initialize(_port);
     if (_sock == -1) {
         throw SocketException();
+    }
+
+    // 如果采用register buffer，则预先分配资源
+    if (register_buffer) {
+        // 缓存块大小和单块大小相同，数量与ring size相同
+        piov = new iovec[_ring_size];
+        // 申请主存区块
+        for (int i = 0; i < _ring_size; ++i) {
+            piov[i].iov_base = new char[_max_buffer_size];
+            piov[i].iov_len = _max_buffer_size;
+            memset(piov[i].iov_base, 0, piov[i].iov_len);
+        }
+        // 注册缓冲区
+        int ret = io_uring_register_buffers(&_ring, piov, _ring_size);
+        if (ret) {
+            std::cout << "Error registering buffers: " << strerror(-ret) << std::endl;
+        }
     }
 
     // 提交一个初始的sqe，用于接收首个用户的连接
@@ -295,9 +339,15 @@ void Rocket::Start() {
                 // 读取到了输入
                 // 解析cqe中的数据
                 int client_sock = cqe_request->client_sock;
+                char *read_buffer = nullptr;
+                if (register_buffer) {
+                    read_buffer = (char *)piov[cqe_request->buffer_index].iov_base;
+                } else {
+                    read_buffer = cqe_request->buff;
+                }
                 // 检查是否有完整buffer可用
                 Buffer full_buffer =
-                    CheckFullBlock(client_sock, cqe_request->buff, processed_bytes);
+                    CheckFullBlock(client_sock, read_buffer, processed_bytes);
                 if (!full_buffer.buffer) {
                     break;
                 }
@@ -422,6 +472,13 @@ Rocket::~Rocket() {
     delete pool;
     if (log_file) {
         delete log_file;
+    }
+    // 清理固定缓存
+    if (piov) {
+        for (int i = 0; i < _ring_size; ++i) {
+            delete[]piov[i].iov_base;
+        }
+        delete[]piov;
     }
 }
 

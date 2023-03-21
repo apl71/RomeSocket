@@ -28,6 +28,8 @@ struct Request {
     int type;
     int client_sock;
     char *buff;
+    // 仅当使用register buffer且type为REQUEST_TYPE_READ时有效
+    int buffer_index = -1;
 };
 
 struct Client {
@@ -81,6 +83,12 @@ private:
     // 日志锁
     std::mutex log_lock;
 
+    // 控制是否使用register buffer
+    bool register_buffer = false;
+    // 当前可用的index
+    int register_buffer_index = 0;
+    iovec *piov = nullptr;
+
     // 初始化套接字
     void Initialize(int port);
     // 提交所有任务
@@ -97,6 +105,8 @@ private:
     Buffer CheckFullBlock(int client_sock, char *new_buffer, int read_size);
     // 将字符串计入日志 level: 0=绿色info 1=黄色warning 2=红色error
     void Log(const std::string &data, int level);
+    // 返回当前可用的buffer index
+    int GetValidIndex();
 
 public:
     // 初始化对象
@@ -130,6 +140,9 @@ public:
 
     // 设定日志信息
     void SetLogFile(std::string log, bool color);
+
+    // 开关register buffer，必须在调用Start()前调用，且Start()后不能再更改
+    void SetRegisterBuffer(bool on);
 };
 
 #endif
