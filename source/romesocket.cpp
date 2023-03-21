@@ -204,7 +204,7 @@ Buffer Rocket::CheckFullBlock(int client_sock, char *new_buffer,
 }
 
 void Rocket::Log(const std::string &data, int level) {
-    if (log_file) {
+    if (!log_file.empty()) {
         std::lock_guard<std::mutex> lock(log_lock);
         // 获取当前的时间
         time_t now = time(nullptr);
@@ -219,21 +219,23 @@ void Rocket::Log(const std::string &data, int level) {
         std::string level_color = nullptr;
         std::string level_text = "";
         switch (level) {
-            case 0: level_color = green,  level_text = "[  INFO   ]"; break;
-            case 1: level_color = yellow, level_text = "[ WARNING ]"; break;
-            case 2: level_color = red,    level_text = "[  ERROR  ]"; break;
+            case INFO:    level_color = green,  level_text = "[  INFO   ]"; break;
+            case WARNING: level_color = yellow, level_text = "[ WARNING ]"; break;
+            case ERROR:   level_color = red,    level_text = "[  ERROR  ]"; break;
             default: return;
         }
         // 输出到文件
-        *log_file << "[" << time << "] "; 
+        std::ofstream log(log_file, std::ios::app);
+        log << "[" << time << "] "; 
         if (colored) {
-            *log_file << level_color;
+            log << level_color;
         }
-        *log_file << level_text;
+        log << level_text;
         if (colored) {
-            *log_file << reset;
+            log << reset;
         }
-        *log_file << data << std::endl;
+        log << data << std::endl;
+        log.close();
     }
 }
 
@@ -251,17 +253,27 @@ void Rocket::Start() {
     // 如果采用register buffer，则预先分配资源
     if (register_buffer) {
         // 缓存块大小和单块大小相同，数量与ring size相同
-        piov = new iovec[_ring_size];
+        try {
+            piov = new iovec[_ring_size];
+        } catch (std::exception &e) {
+            Log("Fail to allocate memory for register buffers.", ERROR);
+            exit(0);
+        }
         // 申请主存区块
-        for (int i = 0; i < _ring_size; ++i) {
-            piov[i].iov_base = new char[_max_buffer_size];
+        for (size_t i = 0; i < _ring_size; ++i) {
+            try {
+                piov[i].iov_base = new char[_max_buffer_size];
+            } catch (std::exception &e) {
+                Log("Fail to allocate memory for register buffers.", ERROR);
+                exit(0);
+            }
             piov[i].iov_len = _max_buffer_size;
             memset(piov[i].iov_base, 0, piov[i].iov_len);
         }
         // 注册缓冲区
         int ret = io_uring_register_buffers(&_ring, piov, _ring_size);
         if (ret) {
-            std::cout << "Error registering buffers: " << strerror(-ret) << std::endl;
+            Log("Error registering buffers: " + std::string(strerror(-ret)), ERROR);
         }
     }
 
@@ -270,7 +282,7 @@ void Rocket::Start() {
     socklen_t addr_len = sizeof(client_addr);
     if (PrepareAccept(&client_addr, &addr_len) <= 0) {
         //std::cout << "[Error] Fatal error: fail to prepare accept."
-        Log("Start: fail to prepare accept.", 2);
+        Log("Start: fail to prepare accept.", ERROR);
         exit(0);
     }
     Submit();
@@ -448,9 +460,10 @@ void Rocket::Start() {
             }
             case REQUEST_TYPE_WRITE:
                 if (processed_bytes != (int)_max_buffer_size) {
-                    std::cout << "Write event finished. processed bytes = " << processed_bytes << std::endl;
+                    Log("Write event finished. processed bytes = " + std::to_string(processed_bytes), INFO);
                 }
                 break;
+            default: Log("Bad cqe type: " + std::to_string(cqe_request->type), WARNING); break;
         }
         auto iter = clients.find(cqe_request->client_sock);
         if (iter != clients.end()) {
@@ -470,13 +483,10 @@ Rocket::~Rocket() {
         close(_sock);
     }
     delete pool;
-    if (log_file) {
-        delete log_file;
-    }
     // 清理固定缓存
     if (piov) {
-        for (int i = 0; i < _ring_size; ++i) {
-            delete[]piov[i].iov_base;
+        for (size_t i = 0; i < _ring_size; ++i) {
+            delete[](char *)piov[i].iov_base;
         }
         delete[]piov;
     }
@@ -504,7 +514,7 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     auto client_iter = clients.find(client_id);
     if (client_iter == clients.end()) {
         //std::cout << "Fail to get user info" << std::endl;
-        Log("Write: Fail to get user info", 1);
+        Log("Write: Fail to get user info", WARNING);
         return -3;
     } else {
         // 更新最后通讯时间
@@ -517,32 +527,22 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
     struct Buffer *buffers = RomeSocketSplit(ciphertext, &length);
     // 逐块发送
     for (unsigned i = 0; i < length; ++i) {
-        // if (PrepareWrite(client_id, buffers[i].buffer, buffers[i].length,
-        //                  i < length - 1) <= 0) {
-        //     Log("Write: Fail to prepare write", 1);
-        //     return -2;
-        // }
         if (buffers[i].length == 0) {
             std::cout << "Warning: Sending empty message." << std::endl;
         }
         SendAll(client_id, buffers[i].buffer, buffers[i].length);
-        // printf("Prepare write ");
-        // for (size_t j = 0; j < buffers[i].length; ++j) {
-        //     printf("%2X ", buffers[i].buffer[j] & 0xff);
-        // }
-        // printf("\n");
     }
     // 清理资源
-    free(ciphertext.buffer);
+    RomeSocketClearBuffer(ciphertext);
     for (unsigned i = 0; i < length; ++i) {
-        free(buffers[i].buffer);
+        RomeSocketClearBuffer(buffers[i]);
     }
     free(buffers);
 
     if (more) {
         if (PrepareRead(client_id, _max_buffer_size) <= 0) {
             //std::cout << "Fail to prepare read more" << std::endl;
-            Log("Write: Fail to prepare read more", 1);
+            Log("Write: Fail to prepare read more", WARNING);
             return -2;
         }
     }
@@ -553,17 +553,18 @@ int Rocket::Write(char *buff, size_t size, int client_id, bool more) {
 void Rocket::Pass(int client_id) {
     if (PrepareRead(client_id, _max_buffer_size) <= 0) {
         std::cout << "Fail to prepare read more" << std::endl;
-        Log("Pass: Fail to prepare read more", 1);
+        Log("Pass: Fail to prepare read more", WARNING);
     }
     Submit();
 }
 
 void Rocket::SetLogFile(std::string log, bool color) {
-    std::ofstream *ofs = new std::ofstream(log, std::ios::app);
-    if (!ofs->is_open()) {
-        std::cout << red << "[Warning]" << reset
+    std::ofstream ofs(log, std::ios::app);
+    if (!ofs.is_open()) {
+        std::cerr << red << "[Warning]" << reset
             << " Fail to open log file. All logs will be discarded." << std::endl;
     }
-    log_file = ofs;
+    ofs.close();
+    log_file = log;
     colored = color;
 }

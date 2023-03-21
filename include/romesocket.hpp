@@ -24,6 +24,12 @@ const std::string green  = "\033[0;32m";
 const std::string red    = "\033[0;31m";
 const std::string reset  = "\033[0m";
 
+enum LogLevel {
+    INFO = 0,
+    WARNING = 1,
+    ERROR = 2
+};
+
 struct Request {
     int type;
     int client_sock;
@@ -60,7 +66,7 @@ private:
     ThreadPool *pool;
 
     // 日志文件
-    std::ofstream *log_file = nullptr;
+    std::string log_file = "";
     bool colored;
 
     // 暂存未完成的读入
