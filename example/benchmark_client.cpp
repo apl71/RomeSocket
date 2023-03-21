@@ -92,11 +92,11 @@ void UploadTest(int packs_num) {
 }
 
 int main() {
-    constexpr int threads_count = 32;
+    constexpr int threads_count = 8;
     std::thread threads[threads_count];
 
     for (int i = 0; i < threads_count; ++i) {
-        if (i < threads_count / 2) {
+        if (i % 2 == 0) {
             threads[i] = std::thread(UploadTest, 100000);
         } else {
             threads[i] = std::thread(DownloadTest);
