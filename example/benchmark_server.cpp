@@ -44,6 +44,7 @@ int main(int argc, char **argv) {
     }
     BenchmarkServer server(8000);
     server.SetRingSize(ring_size);
+    server.SetRegisterBuffer(false);
     int retry = 1;
     int max_retry = 30;
     while (1) {
