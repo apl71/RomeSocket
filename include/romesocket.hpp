@@ -95,6 +95,9 @@ private:
     int register_buffer_index = 0;
     iovec *piov = nullptr;
 
+    // 控制服务程序结束
+    bool shutdown = false;
+
     // 初始化套接字
     void Initialize(int port);
     // 提交所有任务
@@ -149,6 +152,12 @@ public:
 
     // 开关register buffer，必须在调用Start()前调用，且Start()后不能再更改
     void SetRegisterBuffer(bool on);
+
+    // 结束服务程序
+    void Shutdown();
+
+    // 检查服务程序是否终止
+    bool IsShutdown();
 };
 
 #endif

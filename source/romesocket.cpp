@@ -294,21 +294,19 @@ void Rocket::Start() {
 
     // 启动定时事件
     pool->AddTask([=, this](){
-        while (true) {
+        while (!shutdown) {
             sleep(1);
             ChronicTask(time(nullptr));
         }
     });
 
-    while (1) {
+    while (!shutdown) {
         // 等待一个io事件完成，可能是接收到了用户连接，也有可能是用户发来数据
         // 用user_data字段区分它们
         struct io_uring_cqe *cqe;
         if (io_uring_wait_cqe_timeout(&_ring, &cqe, &kt) != 0) {
             continue;
         }
-
-        //std::cout << "Get cqe " << reinterpret_cast<Request *>(cqe->user_data)->type << std::endl;
 
         // 删除过期的客户
         auto it = clients.begin();
@@ -475,6 +473,14 @@ void Rocket::Start() {
         FreeRequest(&cqe_request);
         _ring_mutex.unlock();
     }
+}
+
+void Rocket::Shutdown() {
+    shutdown = true;
+}
+
+bool Rocket::IsShutdown() {
+    return shutdown;
 }
 
 Rocket::~Rocket() {
