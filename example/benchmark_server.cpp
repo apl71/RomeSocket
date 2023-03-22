@@ -66,6 +66,9 @@ public:
             if (result <= 0) {
                 std::cout << "Fail to write." << std::endl;
             }
+        } else if (buff[0] == 's') {
+            std::cout << "shuting down." << std::endl;
+            Shutdown();
         } else {
             std::cout << "strange." << std::endl;
             Pass(client_id);
@@ -81,10 +84,9 @@ int main(int argc, char **argv) {
     BenchmarkServer server(8000);
     server.SetRingSize(ring_size);
     server.SetRegisterBuffer(false);
-    server.SetLogFile("./benchmark_server.log", true);
     int retry = 1;
     int max_retry = 30;
-    while (1) {
+    while (!server.IsShutdown()) {
         try {
             server.Start();
         } catch (SocketException &e) {

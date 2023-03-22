@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
+#include <unistd.h>
 
 std::mutex io_mutex;
 
@@ -95,16 +96,26 @@ int main() {
     constexpr int threads_count = 8;
     std::thread threads[threads_count];
 
-    for (int i = 0; i < threads_count; ++i) {
-        if (i % 2 == 0) {
-            threads[i] = std::thread(UploadTest, 100000);
-        } else {
-            threads[i] = std::thread(DownloadTest);
-        }
-    }
+    // for (int i = 0; i < threads_count; ++i) {
+    //     threads[i] = std::thread(UploadTest, 100000);
+            
+    // }
+    // for (int i = 0; i < threads_count; ++i) {
+    //     threads[i].join();
+    // }
+    // sleep(5);
 
+    for (int i = 0; i < threads_count; ++i) {
+        threads[i] = std::thread(DownloadTest);
+    }
     for (int i = 0; i < threads_count; ++i) {
         threads[i].join();
     }
-    
+
+    sleep(1);
+    std::cout << "Sending shutdown." << std::endl;
+    auto connection = RomeSocketConnect("localhost", 8000, 30);
+    char buff[8000] = {'s'};
+    RomeSocketSend(connection, {buff, 8000});
+    RomeSocketClose(&connection);
 }
