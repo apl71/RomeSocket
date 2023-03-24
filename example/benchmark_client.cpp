@@ -9,6 +9,9 @@
 
 std::mutex io_mutex;
 
+#define HOST "42.192.143.161"
+#define PORT 8000
+
 std::string UnitConversion(double bps) {
     std::vector<std::string> units{"Bps", "KBps", "MBps", "GBps", "TBps"};
     size_t unit = 0;
@@ -28,7 +31,7 @@ double GetDuration(std::chrono::_V2::system_clock::time_point start, std::chrono
 }
 
 void DownloadTest() {
-    auto connection = RomeSocketConnect("localhost", 8000, 30);
+    auto connection = RomeSocketConnect(HOST, PORT, 30);
     io_mutex.lock();
     std::cout << "Start downloading test." << std::endl;
     io_mutex.unlock();
@@ -70,7 +73,7 @@ void DownloadTest() {
 }
 
 void UploadTest(int packs_num) {
-    auto connection = RomeSocketConnect("localhost", 8000, 30);
+    auto connection = RomeSocketConnect(HOST, PORT, 30);
     io_mutex.lock();
     std::cout << "Start uploading test." << std::endl;
     io_mutex.unlock();
@@ -96,14 +99,14 @@ int main() {
     constexpr int threads_count = 8;
     std::thread threads[threads_count];
 
-    // for (int i = 0; i < threads_count; ++i) {
-    //     threads[i] = std::thread(UploadTest, 100000);
+    for (int i = 0; i < threads_count; ++i) {
+        threads[i] = std::thread(UploadTest, 100000);
             
-    // }
-    // for (int i = 0; i < threads_count; ++i) {
-    //     threads[i].join();
-    // }
-    // sleep(5);
+    }
+    for (int i = 0; i < threads_count; ++i) {
+        threads[i].join();
+    }
+    sleep(5);
 
     for (int i = 0; i < threads_count; ++i) {
         threads[i] = std::thread(DownloadTest);
@@ -114,7 +117,7 @@ int main() {
 
     sleep(1);
     std::cout << "Sending shutdown." << std::endl;
-    auto connection = RomeSocketConnect("localhost", 8000, 30);
+    auto connection = RomeSocketConnect(HOST, PORT, 30);
     char buff[8000] = {'s'};
     RomeSocketSend(connection, {buff, 8000});
     RomeSocketClose(&connection);
